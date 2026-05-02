@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:../data/dev.db"
+}
+
+model Search {
+  id             Int     @id @default(autoincrement())
+  createdAt      String
+  query          String
+  sourceUrl      String
+  status         String
+  failureReason  String?
+  durationMs     Int?
+  carsFound      Int     @default(0)
+  cars           Car[]
+}
+
+model Car {
+  id               Int     @id @default(autoincrement())
+  searchId         Int
+  search           Search  @relation(fields: [searchId], references: [id], onDelete: Cascade)
+  name             String
+  model            String?
+  year             Int?
+  km               Int?
+  priceOriginal    Float?
+  currencyOriginal String?
+  priceUsd         Float?
+  transmission     String?
+  color            String?
+  characteristics  String?
+  link             String
+  savedAt          String
+
+  @@unique([searchId, link])
+  @@index([searchId])
+}
