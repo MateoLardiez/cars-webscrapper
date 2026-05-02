@@ -1,0 +1,6 @@
+node_modules
+
+# Backend
+apps/backend/src/generated
+apps/backend/.env
+apps/backend/data
