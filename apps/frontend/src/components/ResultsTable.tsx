@@ -44,6 +44,8 @@ export default function ResultsTable({ cars }: { cars: Car[] }) {
   }
 
   const rows = sortCars(cars, sort);
+  // Si ningún auto trae color, la columna solo ocuparía espacio con guiones.
+  const showColor = cars.some((c) => c.color);
 
   return (
     <div className="overflow-x-auto rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)]">
@@ -51,16 +53,16 @@ export default function ResultsTable({ cars }: { cars: Car[] }) {
         <thead>
           <tr className="border-b border-[var(--color-line)] bg-[var(--color-surface-2)]/60 text-xs text-[var(--color-ink-dim)]">
             <th scope="col" className="px-4 py-2.5 font-medium">Auto</th>
+            <SortHeader label="Precio" sortKey="priceUsd" sort={sort} onSort={toggleSort} />
             <SortHeader label="Año" sortKey="year" sort={sort} onSort={toggleSort} />
             <SortHeader label="Km" sortKey="km" sort={sort} onSort={toggleSort} />
             <th scope="col" className="px-4 py-2.5 font-medium">Transmisión</th>
-            <th scope="col" className="px-4 py-2.5 font-medium">Color</th>
-            <SortHeader label="Precio" sortKey="priceUsd" sort={sort} onSort={toggleSort} />
+            {showColor && <th scope="col" className="px-4 py-2.5 font-medium">Color</th>}
           </tr>
         </thead>
         <tbody>
           {rows.map((car) => (
-            <CarRow key={car.id} car={car} />
+            <CarRow key={car.id} car={car} showColor={showColor} />
           ))}
         </tbody>
       </table>
@@ -96,7 +98,7 @@ function SortHeader({
 }
 
 function SortIcon({ dir }: { dir: SortDir | null }) {
-  const on = "var(--color-amber)";
+  const on = "var(--color-accent)";
   const off = "var(--color-ink-muted)";
   return (
     <svg width="10" height="14" viewBox="0 0 10 14" fill="none" aria-hidden="true">
@@ -118,7 +120,9 @@ function SortIcon({ dir }: { dir: SortDir | null }) {
   );
 }
 
-function CarRow({ car }: { car: Car }) {
+const money = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
+
+function CarRow({ car, showColor }: { car: Car; showColor: boolean }) {
   const foreign =
     car.priceOriginal != null && car.currencyOriginal && car.currencyOriginal !== "USD";
 
@@ -129,7 +133,7 @@ function CarRow({ car }: { car: Car }) {
           href={car.link}
           target="_blank"
           rel="noreferrer"
-          className="block truncate font-medium text-[var(--color-ink)] underline decoration-transparent decoration-1 underline-offset-4 transition-colors hover:text-[var(--color-amber)] hover:decoration-current"
+          className="block truncate font-medium text-[var(--color-ink)] underline decoration-transparent decoration-1 underline-offset-4 transition-colors hover:text-[var(--color-accent)] hover:decoration-current"
         >
           {car.name}
         </a>
@@ -137,24 +141,24 @@ function CarRow({ car }: { car: Car }) {
           <span className="block truncate text-xs text-[var(--color-ink-muted)]">{car.model}</span>
         )}
       </td>
-      <Num value={car.year?.toString()} />
-      <Num value={car.km?.toLocaleString("es-AR")} />
-      <Text value={car.transmission} />
-      <Text value={car.color} />
       <td className="px-4 py-3 text-right font-mono tabular-nums">
         {car.priceUsd != null ? (
-          <span className="font-medium text-[var(--color-amber)]">
-            ${car.priceUsd.toLocaleString("es-AR")}
+          <span className="font-medium text-[var(--color-accent)]">
+            ${money(car.priceUsd)}
           </span>
         ) : (
           <span className="text-[var(--color-ink-muted)]">—</span>
         )}
         {foreign && (
           <span className="block text-xs text-[var(--color-ink-muted)]">
-            {car.priceOriginal!.toLocaleString("es-AR")} {car.currencyOriginal}
+            {money(car.priceOriginal!)} {car.currencyOriginal}
           </span>
         )}
       </td>
+      <Num value={car.year?.toString()} />
+      <Num value={car.km?.toLocaleString("es-AR")} />
+      <Text value={car.transmission} />
+      {showColor && <Text value={car.color} />}
     </tr>
   );
 }

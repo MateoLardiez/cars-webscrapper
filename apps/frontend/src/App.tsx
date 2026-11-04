@@ -6,35 +6,25 @@ import HistoryDetailPage from "./pages/HistoryDetailPage.js";
 export default function App() {
   return (
     <div className="min-h-screen">
-      <header className="border-b border-[var(--color-line)]/60">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-4 px-6 pt-10 pb-6 sm:px-8">
-          <Link to="/" className="group">
-            <div className="flex items-baseline gap-3">
-              <h1 className="font-serif text-5xl italic tracking-tight text-[var(--color-ink)]">
-                Autos
-              </h1>
-              <span className="font-mono text-xs uppercase tracking-wider text-[var(--color-amber)]">
-                / scraper
-              </span>
-            </div>
-            <p className="mt-1 text-xs text-[var(--color-ink-muted)]">
-              Extracción autónoma de anuncios
-            </p>
+      <header className="border-b border-[var(--color-line)] bg-[var(--color-surface)]">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6 sm:px-8">
+          <Link to="/" className="text-base font-semibold tracking-tight text-[var(--color-ink)]">
+            Autos <span className="font-normal text-[var(--color-ink-muted)]">Scraper</span>
           </Link>
-          <nav className="flex gap-1 font-mono text-xs uppercase tracking-wider">
+          <nav className="flex h-full gap-1 text-sm">
             <NavItem to="/" label="Buscar" />
             <NavItem to="/history" label="Historial" />
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-6 py-12 sm:px-8">
+      <main className="mx-auto max-w-6xl px-6 py-10 sm:px-8">
         <Routes>
           <Route path="/" element={<SearchPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/history/:id" element={<HistoryDetailPage />} />
         </Routes>
       </main>
-      <footer className="border-t border-[var(--color-line)]/60 py-6 text-center text-xs text-[var(--color-ink-muted)]">
+      <footer className="border-t border-[var(--color-line)] py-6 text-center text-xs text-[var(--color-ink-muted)]">
         Impulsado por Claude Agent SDK y Playwright MCP
       </footer>
     </div>
@@ -47,10 +37,10 @@ function NavItem({ to, label }: { to: string; label: string }) {
       to={to}
       end={to === "/"}
       className={({ isActive }) =>
-        `relative px-4 py-2 transition-colors ${
+        `relative flex items-center px-3 font-medium transition-colors ${
           isActive
-            ? "text-[var(--color-amber)]"
-            : "text-[var(--color-ink-dim)] hover:text-[var(--color-ink)]"
+            ? "text-[var(--color-ink)]"
+            : "text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]"
         }`
       }
     >
@@ -58,7 +48,7 @@ function NavItem({ to, label }: { to: string; label: string }) {
         <>
           {label}
           {isActive && (
-            <span className="absolute -bottom-px left-4 right-4 h-px bg-[var(--color-amber)]" />
+            <span className="absolute -bottom-px left-3 right-3 h-0.5 bg-[var(--color-accent)]" />
           )}
         </>
       )}

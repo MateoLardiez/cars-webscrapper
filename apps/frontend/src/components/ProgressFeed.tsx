@@ -22,7 +22,7 @@ export default function ProgressFeed({ events }: { events: SseEvent[] }) {
             type="checkbox"
             checked={showThoughts}
             onChange={(e) => setShowThoughts(e.target.checked)}
-            className="h-3.5 w-3.5 accent-[var(--color-amber)]"
+            className="h-3.5 w-3.5 accent-[var(--color-accent)]"
           />
           Mostrar razonamiento
         </label>
@@ -48,10 +48,10 @@ export default function ProgressFeed({ events }: { events: SseEvent[] }) {
 function Tag({ type }: { type: SseEvent["type"] }) {
   const map = {
     agent_thinking: { text: "razonamiento", color: "text-[var(--color-ink-muted)]" },
-    tool_call: { text: "herramienta", color: "text-[var(--color-amber)]" },
-    car_saved: { text: "guardado", color: "text-[var(--color-emerald)]" },
-    extraction_failed: { text: "error", color: "text-[var(--color-rose)]" },
-    done: { text: "listo", color: "text-[var(--color-emerald)]" },
+    tool_call: { text: "herramienta", color: "text-[var(--color-accent)]" },
+    car_saved: { text: "guardado", color: "text-[var(--color-success)]" },
+    extraction_failed: { text: "error", color: "text-[var(--color-danger)]" },
+    done: { text: "listo", color: "text-[var(--color-success)]" },
   };
   const { text, color } = map[type];
   return <span className={`shrink-0 ${color}`}>[{text}]</span>;

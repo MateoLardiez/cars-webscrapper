@@ -13,14 +13,14 @@ export default function SearchPage() {
   const running = status === "running";
 
   return (
-    <div className="space-y-12">
-      <section className="space-y-6">
+    <div className="space-y-10">
+      <section className="space-y-5">
         <div>
-          <h2 className="font-serif text-4xl italic leading-tight text-[var(--color-ink)]">
-            Describe qué estás buscando.
-          </h2>
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--color-ink)]">
+            Nueva búsqueda
+          </h1>
           <p className="mt-2 max-w-xl text-sm text-[var(--color-ink-dim)]">
-            Proporciona una URL y filtros en lenguaje natural. El agente lee la página, normaliza precios y distancia, y guarda coincidencias en tiempo real.
+            Describe qué estás buscando. Proporciona una URL y filtros en lenguaje natural. El agente lee la página, normaliza precios y distancia, y guarda coincidencias en tiempo real.
           </p>
         </div>
 
@@ -34,7 +34,7 @@ export default function SearchPage() {
           placeholder={PLACEHOLDER}
           rows={4}
           disabled={running}
-          className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] p-5 font-mono text-sm leading-relaxed text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted)] focus:border-[var(--color-amber)]/60 disabled:opacity-60"
+          className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] p-4 text-sm leading-relaxed text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted)] focus:border-[var(--color-accent)] disabled:opacity-60"
         />
 
         <div className="flex items-center justify-between">
@@ -44,11 +44,11 @@ export default function SearchPage() {
           <button
             onClick={() => run(query)}
             disabled={!query.trim() || running}
-            className={`rounded-full border px-7 py-3 font-mono text-xs uppercase tracking-wider transition-colors ${
+            className={`rounded-md border px-5 py-2.5 text-sm font-medium transition-colors ${
               running
-                ? "border-[var(--color-amber)]/40 bg-[var(--color-amber)]/10 text-[var(--color-amber)]"
-                : "border-[var(--color-amber)] bg-[var(--color-amber)] text-[var(--color-canvas)] hover:border-[var(--color-ink)] hover:bg-[var(--color-ink)]"
-            } disabled:cursor-not-allowed disabled:opacity-40`}
+                ? "border-[var(--color-line)] bg-[var(--color-surface-2)] text-[var(--color-ink-dim)]"
+                : "border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-accent-ink)] hover:border-[var(--color-accent-hover)] hover:bg-[var(--color-accent-hover)]"
+            } disabled:cursor-not-allowed disabled:opacity-50`}
           >
             {running ? "En ejecución…" : "Ejecutar búsqueda"}
           </button>
@@ -61,13 +61,13 @@ export default function SearchPage() {
           <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
             <div>
               <SectionLabel label="Resultados" />
-              <div className="mt-4">
+              <div className="mt-3">
                 <ResultsTable cars={cars} />
               </div>
             </div>
             <div>
               <SectionLabel label="Actividad" />
-              <div className="mt-4">
+              <div className="mt-3">
                 <ProgressFeed events={events} />
               </div>
             </div>
@@ -80,8 +80,6 @@ export default function SearchPage() {
 
 function SectionLabel({ label }: { label: string }) {
   return (
-    <h3 className="font-mono text-xs uppercase tracking-wider text-[var(--color-amber)]">
-      {label}
-    </h3>
+    <h2 className="text-sm font-semibold text-[var(--color-ink)]">{label}</h2>
   );
 }

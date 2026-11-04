@@ -10,13 +10,13 @@ export default function StatusBanner({ status, summary, failure }: Props) {
   const config = {
     running: {
       tag: "En ejecución",
-      color: "var(--color-amber)",
+      color: "var(--color-accent)",
       detail: "El agente está navegando la página…",
       dot: "animate-pulse",
     },
     done: {
       tag: "Completado",
-      color: "var(--color-emerald)",
+      color: "var(--color-success)",
       detail: summary
         ? `${summary.carsFound} autos · ${(summary.durationMs / 1000).toFixed(1)} s`
         : "",
@@ -24,7 +24,7 @@ export default function StatusBanner({ status, summary, failure }: Props) {
     },
     failed: {
       tag: "Fallido",
-      color: "var(--color-rose)",
+      color: "var(--color-danger)",
       detail: failure ?? "Error desconocido",
       dot: "",
     },
@@ -33,16 +33,13 @@ export default function StatusBanner({ status, summary, failure }: Props) {
   return (
     <div
       role="status"
-      className="flex items-center gap-4 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-5 py-4"
+      className="flex items-center gap-3 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-4 py-3"
     >
       <span
         className={`h-2 w-2 shrink-0 rounded-full ${config.dot}`}
         style={{ background: config.color }}
       />
-      <span
-        className="font-mono text-xs uppercase tracking-wider"
-        style={{ color: config.color }}
-      >
+      <span className="text-sm font-medium" style={{ color: config.color }}>
         {config.tag}
       </span>
       <span className="text-sm text-[var(--color-ink-dim)]">{config.detail}</span>

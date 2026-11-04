@@ -22,20 +22,20 @@ export default function HistoryDetailPage() {
   }
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <Link
         to="/history"
-        className="inline-block text-sm text-[var(--color-ink-dim)] transition-colors hover:text-[var(--color-amber)]"
+        className="inline-block text-sm text-[var(--color-ink-dim)] transition-colors hover:text-[var(--color-accent)]"
       >
         Volver al historial
       </Link>
 
       <section>
-        <h2 className="text-xs text-[var(--color-ink-muted)]">Búsqueda #{data.id}</h2>
-        <blockquote className="mt-3 border-l border-[var(--color-line)] pl-5 font-serif text-2xl italic leading-snug text-[var(--color-ink)]">
+        <p className="text-xs text-[var(--color-ink-muted)]">Búsqueda #{data.id}</p>
+        <h1 className="mt-1 max-w-3xl text-xl font-semibold leading-snug tracking-tight text-[var(--color-ink)]">
           {data.query}
-        </blockquote>
-        <dl className="mt-6 grid grid-cols-2 gap-x-8 gap-y-4 font-mono text-xs sm:grid-cols-4">
+        </h1>
+        <dl className="mt-6 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
           <Meta label="Cuándo" value={new Date(data.createdAt).toLocaleString("es-AR")} />
           <Meta label="Fuente" value={hostname(data.sourceUrl)} />
           <Meta label="Estado" value={STATUS_LABEL[data.status]} />
@@ -44,10 +44,8 @@ export default function HistoryDetailPage() {
       </section>
 
       <section>
-        <h3 className="font-mono text-xs uppercase tracking-wider text-[var(--color-amber)]">
-          Resultados
-        </h3>
-        <div className="mt-4">
+        <h2 className="text-sm font-semibold text-[var(--color-ink)]">Resultados</h2>
+        <div className="mt-3">
           <ResultsTable cars={data.cars} />
         </div>
       </section>
@@ -59,7 +57,7 @@ function Meta({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt className="text-xs text-[var(--color-ink-muted)]">{label}</dt>
-      <dd className="mt-1 text-sm text-[var(--color-ink-dim)]">{value}</dd>
+      <dd className="mt-1 text-sm text-[var(--color-ink)]">{value}</dd>
     </div>
   );
 }
