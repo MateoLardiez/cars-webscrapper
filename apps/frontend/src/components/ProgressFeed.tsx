@@ -14,32 +14,25 @@ export default function ProgressFeed({ events }: { events: SseEvent[] }) {
   }, [visible.length]);
 
   return (
-    <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] overflow-hidden">
+    <div className="overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)]">
       <div className="flex items-center justify-between border-b border-[var(--color-line)] bg-[var(--color-surface-2)]/60 px-4 py-2">
-        <div className="flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-emerald)] animate-pulse" />
-          <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[var(--color-ink-dim)]">
-            agent.log
-          </span>
-        </div>
-        <label className="flex cursor-pointer items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--color-ink-muted)] hover:text-[var(--color-ink-dim)]">
+        <span className="text-xs text-[var(--color-ink-dim)]">Registro del agente</span>
+        <label className="flex cursor-pointer items-center gap-2 text-xs text-[var(--color-ink-muted)] hover:text-[var(--color-ink-dim)]">
           <input
             type="checkbox"
             checked={showThoughts}
             onChange={(e) => setShowThoughts(e.target.checked)}
-            className="h-3 w-3 accent-[var(--color-amber)]"
+            className="h-3.5 w-3.5 accent-[var(--color-amber)]"
           />
-          thoughts
+          Mostrar razonamiento
         </label>
       </div>
       <ul
         ref={scrollRef}
-        className="max-h-[480px] space-y-1.5 overflow-y-auto p-3 font-mono text-[11px] leading-relaxed"
+        className="max-h-[480px] space-y-2 overflow-y-auto p-3 font-mono text-xs leading-relaxed"
       >
         {visible.length === 0 && (
-          <li className="text-[var(--color-ink-muted)]">
-            <span className="animate-blink">_</span>
-          </li>
+          <li className="text-[var(--color-ink-muted)]">Sin actividad todavía.</li>
         )}
         {visible.map((e, i) => (
           <li key={i} className="animate-slide-in flex gap-2">
@@ -54,16 +47,14 @@ export default function ProgressFeed({ events }: { events: SseEvent[] }) {
 
 function Tag({ type }: { type: SseEvent["type"] }) {
   const map = {
-    agent_thinking: { text: "think", color: "text-[var(--color-ink-muted)]" },
-    tool_call: { text: "tool", color: "text-[var(--color-amber)]" },
-    car_saved: { text: "save", color: "text-[var(--color-emerald)]" },
-    extraction_failed: { text: "fail", color: "text-[var(--color-rose)]" },
-    done: { text: "done", color: "text-[var(--color-emerald)]" },
+    agent_thinking: { text: "razonamiento", color: "text-[var(--color-ink-muted)]" },
+    tool_call: { text: "herramienta", color: "text-[var(--color-amber)]" },
+    car_saved: { text: "guardado", color: "text-[var(--color-emerald)]" },
+    extraction_failed: { text: "error", color: "text-[var(--color-rose)]" },
+    done: { text: "listo", color: "text-[var(--color-emerald)]" },
   };
   const { text, color } = map[type];
-  return (
-    <span className={`shrink-0 ${color} uppercase tracking-wider`}>[{text}]</span>
-  );
+  return <span className={`shrink-0 ${color}`}>[{text}]</span>;
 }
 
 function getText(e: SseEvent): string {
@@ -77,6 +68,6 @@ function getText(e: SseEvent): string {
     case "extraction_failed":
       return e.reason;
     case "done":
-      return `${e.carsFound} cars · ${e.durationMs}ms`;
+      return `${e.carsFound} autos · ${(e.durationMs / 1000).toFixed(1)} s`;
   }
 }

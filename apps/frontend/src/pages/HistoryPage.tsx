@@ -7,24 +7,15 @@ export default function HistoryPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-[var(--color-amber)]">
-          Archivo
-        </p>
-        <h2 className="mt-2 font-serif text-4xl italic text-[var(--color-ink)]">
-          Búsquedas anteriores.
-        </h2>
-      </div>
+      <h2 className="font-serif text-4xl italic text-[var(--color-ink)]">
+        Búsquedas anteriores.
+      </h2>
 
-      {loading && (
-        <p className="font-mono text-xs text-[var(--color-ink-muted)]">cargando...</p>
-      )}
+      {loading && <p className="text-sm text-[var(--color-ink-muted)]">Cargando…</p>}
 
       {!loading && searches.length === 0 && (
         <div className="rounded-lg border border-dashed border-[var(--color-line)] bg-[var(--color-surface)]/40 p-10 text-center">
-          <p className="font-mono text-xs uppercase tracking-[0.25em] text-[var(--color-ink-muted)]">
-            Sin búsquedas aún
-          </p>
+          <p className="text-sm text-[var(--color-ink-muted)]">Todavía no hay búsquedas.</p>
         </div>
       )}
 
@@ -39,6 +30,13 @@ export default function HistoryPage() {
   );
 }
 
+const STATUS_LABEL: Record<Search["status"], string> = {
+  done: "Completada",
+  running: "En curso",
+  failed: "Fallida",
+  timeout: "Tiempo agotado",
+};
+
 function HistoryRow({ search, index }: { search: Search; index: number }) {
   const statusColor = {
     done: "var(--color-emerald)",
@@ -51,28 +49,28 @@ function HistoryRow({ search, index }: { search: Search; index: number }) {
     <li>
       <Link
         to={`/history/${search.id}`}
-        className="group flex items-center gap-6 rounded-lg border border-transparent px-4 py-4 transition-all hover:border-[var(--color-line)] hover:bg-[var(--color-surface)]"
+        className="group flex items-center gap-4 rounded-lg border border-transparent px-4 py-4 transition-colors hover:border-[var(--color-line)] hover:bg-[var(--color-surface)] sm:gap-6"
       >
-        <span className="w-8 shrink-0 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--color-ink-muted)]">
+        <span className="w-8 shrink-0 font-mono text-xs text-[var(--color-ink-muted)]">
           {String(index).padStart(3, "0")}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-serif text-lg italic text-[var(--color-ink)] group-hover:text-[var(--color-amber)] transition-colors">
+          <p className="truncate font-serif text-lg italic text-[var(--color-ink)] transition-colors group-hover:text-[var(--color-amber)]">
             {search.query}
           </p>
-          <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--color-ink-muted)]">
-            {hostname(search.sourceUrl)} · {new Date(search.createdAt).toLocaleString()}
+          <p className="mt-1 text-xs text-[var(--color-ink-muted)]">
+            {hostname(search.sourceUrl)} · {new Date(search.createdAt).toLocaleString("es-AR")}
           </p>
         </div>
         <div className="shrink-0 text-right">
           <p className="font-mono text-lg text-[var(--color-ink)]">{search.carsFound}</p>
-          <p className="font-mono text-[9px] uppercase tracking-[0.25em] text-[var(--color-ink-muted)]">autos</p>
+          <p className="text-xs text-[var(--color-ink-muted)]">autos</p>
         </div>
         <span
-          className="shrink-0 font-mono text-[10px] uppercase tracking-[0.25em]"
+          className="shrink-0 font-mono text-xs uppercase tracking-wider"
           style={{ color: statusColor }}
         >
-          ● {search.status}
+          ● {STATUS_LABEL[search.status]}
         </span>
       </Link>
     </li>
