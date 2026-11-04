@@ -1,6 +1,31 @@
+import { useState } from "react";
 import type { Car } from "@cars-webscrapper/shared";
 
+type SortKey = "year" | "km" | "priceUsd";
+type SortDir = "asc" | "desc";
+interface Sort {
+  key: SortKey;
+  dir: SortDir;
+}
+
+function sortCars(cars: Car[], sort: Sort | null): Car[] {
+  if (!sort) return cars;
+  const { key, dir } = sort;
+  const factor = dir === "asc" ? 1 : -1;
+  // Los autos sin ese dato siempre van al final, sin importar la dirección.
+  return [...cars].sort((a, b) => {
+    const av = a[key];
+    const bv = b[key];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    return (av - bv) * factor;
+  });
+}
+
 export default function ResultsTable({ cars }: { cars: Car[] }) {
+  const [sort, setSort] = useState<Sort | null>(null);
+
   if (cars.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-[var(--color-line)] bg-[var(--color-surface)]/40 p-10 text-center">
@@ -8,72 +33,140 @@ export default function ResultsTable({ cars }: { cars: Car[] }) {
       </div>
     );
   }
+
+  // Ciclo de clic: ascendente, descendente, orden original.
+  function toggleSort(key: SortKey) {
+    setSort((prev) => {
+      if (!prev || prev.key !== key) return { key, dir: "asc" };
+      if (prev.dir === "asc") return { key, dir: "desc" };
+      return null;
+    });
+  }
+
+  const rows = sortCars(cars, sort);
+
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {cars.map((car, i) => (
-        <CarCard key={car.id} car={car} index={i} />
-      ))}
+    <div className="overflow-x-auto rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)]">
+      <table className="w-full min-w-[560px] border-collapse text-left text-sm">
+        <thead>
+          <tr className="border-b border-[var(--color-line)] bg-[var(--color-surface-2)]/60 text-xs text-[var(--color-ink-dim)]">
+            <th scope="col" className="px-4 py-2.5 font-medium">Auto</th>
+            <SortHeader label="Año" sortKey="year" sort={sort} onSort={toggleSort} />
+            <SortHeader label="Km" sortKey="km" sort={sort} onSort={toggleSort} />
+            <th scope="col" className="px-4 py-2.5 font-medium">Transmisión</th>
+            <th scope="col" className="px-4 py-2.5 font-medium">Color</th>
+            <SortHeader label="Precio" sortKey="priceUsd" sort={sort} onSort={toggleSort} />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((car) => (
+            <CarRow key={car.id} car={car} />
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-function CarCard({ car, index }: { car: Car; index: number }) {
+function SortHeader({
+  label,
+  sortKey,
+  sort,
+  onSort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: Sort | null;
+  onSort: (key: SortKey) => void;
+}) {
+  const active = sort?.key === sortKey ? sort.dir : null;
+  const ariaSort = active === "asc" ? "ascending" : active === "desc" ? "descending" : "none";
   return (
-    <article
-      className="animate-fade-up rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] p-4 transition-colors hover:border-[var(--color-amber)]/50 hover:bg-[var(--color-surface-2)]"
-      style={{ animationDelay: `${index * 40}ms` }}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <h3 className="font-serif text-xl italic leading-tight text-[var(--color-ink)]">
-            {car.name}
-          </h3>
-          {car.model && (
-            <p className="mt-0.5 font-mono text-xs text-[var(--color-ink-muted)]">
-              {car.model}
-            </p>
-          )}
-        </div>
-        {car.priceUsd != null && (
-          <div className="shrink-0 text-right">
-            <p className="font-mono text-lg font-medium text-[var(--color-amber)]">
-              ${car.priceUsd.toLocaleString("es-AR")}
-            </p>
-            {car.priceOriginal && car.currencyOriginal && car.currencyOriginal !== "USD" && (
-              <p className="font-mono text-xs text-[var(--color-ink-muted)]">
-                {car.priceOriginal.toLocaleString("es-AR")} {car.currencyOriginal}
-              </p>
-            )}
-          </div>
+    <th scope="col" aria-sort={ariaSort} className="px-4 py-2.5 text-right font-medium">
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex items-center gap-1 rounded-sm text-xs font-medium transition-colors hover:text-[var(--color-ink)]"
+      >
+        {label}
+        <SortIcon dir={active} />
+      </button>
+    </th>
+  );
+}
+
+function SortIcon({ dir }: { dir: SortDir | null }) {
+  const on = "var(--color-amber)";
+  const off = "var(--color-ink-muted)";
+  return (
+    <svg width="10" height="14" viewBox="0 0 10 14" fill="none" aria-hidden="true">
+      <path
+        d="M2 5.5 5 2.5l3 3"
+        stroke={dir === "asc" ? on : off}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M2 8.5l3 3 3-3"
+        stroke={dir === "desc" ? on : off}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CarRow({ car }: { car: Car }) {
+  const foreign =
+    car.priceOriginal != null && car.currencyOriginal && car.currencyOriginal !== "USD";
+
+  return (
+    <tr className="animate-fade-up border-b border-[var(--color-line)]/60 transition-colors last:border-b-0 hover:bg-[var(--color-surface-2)]">
+      <td className="max-w-[260px] px-4 py-3">
+        <a
+          href={car.link}
+          target="_blank"
+          rel="noreferrer"
+          className="block truncate font-medium text-[var(--color-ink)] underline decoration-transparent decoration-1 underline-offset-4 transition-colors hover:text-[var(--color-amber)] hover:decoration-current"
+        >
+          {car.name}
+        </a>
+        {car.model && (
+          <span className="block truncate text-xs text-[var(--color-ink-muted)]">{car.model}</span>
         )}
-      </div>
-
-      <dl className="mt-4 grid grid-cols-3 gap-x-2 gap-y-3 border-t border-[var(--color-line)]/60 pt-3 font-mono text-xs">
-        <Spec label="Año" value={car.year} />
-        <Spec label="Km" value={car.km?.toLocaleString("es-AR")} />
-        <Spec label="Transmisión" value={car.transmission} />
-        <Spec label="Color" value={car.color} />
-        <Spec label="Guardado" value={new Date(car.savedAt).toLocaleTimeString("es-AR")} />
-        <div className="col-start-3 row-start-1 row-span-2 flex items-end justify-end">
-          <a
-            href={car.link}
-            target="_blank"
-            rel="noreferrer"
-            className="font-mono text-xs uppercase tracking-wider text-[var(--color-ink-dim)] underline decoration-[var(--color-amber)]/50 decoration-1 underline-offset-4 transition-colors hover:text-[var(--color-amber)]"
-          >
-            Ver anuncio
-          </a>
-        </div>
-      </dl>
-    </article>
+      </td>
+      <Num value={car.year?.toString()} />
+      <Num value={car.km?.toLocaleString("es-AR")} />
+      <Text value={car.transmission} />
+      <Text value={car.color} />
+      <td className="px-4 py-3 text-right font-mono tabular-nums">
+        {car.priceUsd != null ? (
+          <span className="font-medium text-[var(--color-amber)]">
+            ${car.priceUsd.toLocaleString("es-AR")}
+          </span>
+        ) : (
+          <span className="text-[var(--color-ink-muted)]">—</span>
+        )}
+        {foreign && (
+          <span className="block text-xs text-[var(--color-ink-muted)]">
+            {car.priceOriginal!.toLocaleString("es-AR")} {car.currencyOriginal}
+          </span>
+        )}
+      </td>
+    </tr>
   );
 }
 
-function Spec({ label, value }: { label: string; value: string | number | null | undefined }) {
+function Num({ value }: { value: string | undefined }) {
   return (
-    <div>
-      <dt className="text-xs text-[var(--color-ink-muted)]">{label}</dt>
-      <dd className="text-[var(--color-ink-dim)]">{value ?? "—"}</dd>
-    </div>
+    <td className="px-4 py-3 text-right font-mono tabular-nums text-[var(--color-ink-dim)]">
+      {value ?? "—"}
+    </td>
   );
+}
+
+function Text({ value }: { value: string | null }) {
+  return <td className="px-4 py-3 text-[var(--color-ink-dim)]">{value ?? "—"}</td>;
 }
