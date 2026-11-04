@@ -5,3 +5,7 @@ apps/backend/src/generated
 apps/backend/.env
 apps/backend/data
 apps/backend/.playwright-mcp
+
+
+# AI
+.cursor
