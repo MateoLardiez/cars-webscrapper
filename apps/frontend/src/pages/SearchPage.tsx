@@ -37,7 +37,7 @@ export default function SearchPage() {
             placeholder={PLACEHOLDER}
             rows={4}
             disabled={running}
-            className="min-h-24 bg-card text-sm leading-relaxed"
+            className="min-h-44 bg-card text-sm leading-relaxed sm:min-h-24"
           />
         </div>
 
