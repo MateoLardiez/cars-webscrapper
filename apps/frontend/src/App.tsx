@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 export default function App() {
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-dvh flex-col">
       <header className="border-b bg-card">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6 sm:px-8">
           <Link to="/" className="text-base font-semibold tracking-tight">
@@ -19,7 +19,7 @@ export default function App() {
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-6 py-10 sm:px-8">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10 sm:px-8">
         <Routes>
           <Route path="/" element={<SearchPage />} />
           <Route path="/history" element={<HistoryPage />} />
