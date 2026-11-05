@@ -1,50 +1,69 @@
 import { Link, useParams } from "react-router-dom";
+import { ArrowLeft, SearchX } from "lucide-react";
 import { useSearchDetail } from "../hooks/useSearchDetail.js";
 import ResultsTable from "../components/ResultsTable.js";
-import type { Search } from "@cars-webscrapper/shared";
-
-const STATUS_LABEL: Record<Search["status"], string> = {
-  done: "Completada",
-  running: "En curso",
-  failed: "Fallida",
-  timeout: "Tiempo agotado",
-};
+import StatusBadge from "../components/StatusBadge.js";
+import { Button } from "@/components/ui/button";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function HistoryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data, loading } = useSearchDetail(Number(id));
 
   if (loading) {
-    return <p className="text-sm text-[var(--color-ink-muted)]">Cargando…</p>;
+    return (
+      <div className="space-y-4" aria-busy="true">
+        <Skeleton className="h-8 w-2/3" />
+        <Skeleton className="h-4 w-1/3" />
+        <Skeleton className="h-48 w-full" />
+      </div>
+    );
   }
+
   if (!data) {
-    return <p className="text-sm text-[var(--color-ink-muted)]">Búsqueda no encontrada.</p>;
+    return (
+      <Empty className="border border-dashed">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <SearchX />
+          </EmptyMedia>
+          <EmptyTitle>Búsqueda no encontrada</EmptyTitle>
+          <EmptyDescription>Puede que se haya eliminado o que el enlace sea incorrecto.</EmptyDescription>
+        </EmptyHeader>
+        <Button asChild variant="outline">
+          <Link to="/history">Volver al historial</Link>
+        </Button>
+      </Empty>
+    );
   }
 
   return (
     <div className="space-y-8">
-      <Link
-        to="/history"
-        className="inline-block text-sm text-[var(--color-ink-dim)] transition-colors hover:text-[var(--color-accent)]"
-      >
-        Volver al historial
-      </Link>
+      <Button asChild variant="ghost" size="sm" className="-ml-2.5">
+        <Link to="/history">
+          <ArrowLeft aria-hidden="true" data-icon="inline-start" />
+          Volver al historial
+        </Link>
+      </Button>
 
       <section>
-        <p className="text-xs text-[var(--color-ink-muted)]">Búsqueda #{data.id}</p>
-        <h1 className="mt-1 max-w-3xl text-xl font-semibold leading-snug tracking-tight text-[var(--color-ink)]">
+        <p className="text-xs text-muted-foreground">Búsqueda #{data.id}</p>
+        <h1 className="mt-1 max-w-3xl text-xl font-semibold leading-snug tracking-tight">
           {data.query}
         </h1>
         <dl className="mt-6 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
-          <Meta label="Cuándo" value={new Date(data.createdAt).toLocaleString("es-AR")} />
-          <Meta label="Fuente" value={hostname(data.sourceUrl)} />
-          <Meta label="Estado" value={STATUS_LABEL[data.status]} />
-          <Meta label="Autos" value={String(data.carsFound)} />
+          <Meta label="Cuándo">{new Date(data.createdAt).toLocaleString("es-AR")}</Meta>
+          <Meta label="Fuente">{hostname(data.sourceUrl)}</Meta>
+          <Meta label="Estado">
+            <StatusBadge status={data.status} />
+          </Meta>
+          <Meta label="Autos">{data.carsFound}</Meta>
         </dl>
       </section>
 
       <section>
-        <h2 className="text-sm font-semibold text-[var(--color-ink)]">Resultados</h2>
+        <h2 className="text-sm font-semibold">Resultados</h2>
         <div className="mt-3">
           <ResultsTable cars={data.cars} />
         </div>
@@ -53,11 +72,11 @@ export default function HistoryDetailPage() {
   );
 }
 
-function Meta({ label, value }: { label: string; value: string }) {
+function Meta({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="text-xs text-[var(--color-ink-muted)]">{label}</dt>
-      <dd className="mt-1 text-sm text-[var(--color-ink)]">{value}</dd>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="mt-1 text-sm">{children}</dd>
     </div>
   );
 }

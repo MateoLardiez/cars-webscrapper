@@ -1,5 +1,17 @@
 import { useState } from "react";
+import { ArrowDown, ArrowUp, CarFront, ChevronsUpDown } from "lucide-react";
 import type { Car } from "@cars-webscrapper/shared";
+import { Button } from "@/components/ui/button";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type SortKey = "year" | "km" | "priceUsd";
 type SortDir = "asc" | "desc";
@@ -23,14 +35,30 @@ function sortCars(cars: Car[], sort: Sort | null): Car[] {
   });
 }
 
-export default function ResultsTable({ cars }: { cars: Car[] }) {
+const money = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
+
+interface Props {
+  cars: Car[];
+  /** true mientras el agente sigue buscando y todavía no llegó ningún auto */
+  loading?: boolean;
+}
+
+export default function ResultsTable({ cars, loading = false }: Props) {
   const [sort, setSort] = useState<Sort | null>(null);
+
+  if (cars.length === 0 && loading) return <ResultsSkeleton />;
 
   if (cars.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-[var(--color-line)] bg-[var(--color-surface)]/40 p-10 text-center">
-        <p className="text-sm text-[var(--color-ink-muted)]">Esperando el primer anuncio…</p>
-      </div>
+      <Empty className="border border-dashed">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <CarFront />
+          </EmptyMedia>
+          <EmptyTitle>Sin resultados</EmptyTitle>
+          <EmptyDescription>Esta búsqueda no guardó ningún auto.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     );
   }
 
@@ -48,29 +76,29 @@ export default function ResultsTable({ cars }: { cars: Car[] }) {
   const showColor = cars.some((c) => c.color);
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)]">
-      <table className="w-full min-w-[560px] border-collapse text-left text-sm">
-        <thead>
-          <tr className="border-b border-[var(--color-line)] bg-[var(--color-surface-2)]/60 text-xs text-[var(--color-ink-dim)]">
-            <th scope="col" className="px-4 py-2.5 font-medium">Auto</th>
-            <SortHeader label="Precio" sortKey="priceUsd" sort={sort} onSort={toggleSort} />
-            <SortHeader label="Año" sortKey="year" sort={sort} onSort={toggleSort} />
-            <SortHeader label="Km" sortKey="km" sort={sort} onSort={toggleSort} />
-            <th scope="col" className="px-4 py-2.5 font-medium">Transmisión</th>
-            {showColor && <th scope="col" className="px-4 py-2.5 font-medium">Color</th>}
-          </tr>
-        </thead>
-        <tbody>
+    <div className="rounded-lg border bg-card">
+      <Table className="min-w-[560px]">
+        <TableHeader>
+          <TableRow>
+            <TableHead>Auto</TableHead>
+            <SortHead label="Precio" sortKey="priceUsd" sort={sort} onSort={toggleSort} />
+            <SortHead label="Año" sortKey="year" sort={sort} onSort={toggleSort} />
+            <SortHead label="Km" sortKey="km" sort={sort} onSort={toggleSort} />
+            <TableHead>Transmisión</TableHead>
+            {showColor && <TableHead>Color</TableHead>}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map((car) => (
             <CarRow key={car.id} car={car} showColor={showColor} />
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
 
-function SortHeader({
+function SortHead({
   label,
   sortKey,
   sort,
@@ -83,94 +111,78 @@ function SortHeader({
 }) {
   const active = sort?.key === sortKey ? sort.dir : null;
   const ariaSort = active === "asc" ? "ascending" : active === "desc" ? "descending" : "none";
+  const Icon = active === "asc" ? ArrowUp : active === "desc" ? ArrowDown : ChevronsUpDown;
   return (
-    <th scope="col" aria-sort={ariaSort} className="px-4 py-2.5 text-right font-medium">
-      <button
-        type="button"
-        onClick={() => onSort(sortKey)}
-        className="inline-flex items-center gap-1 rounded-sm text-xs font-medium transition-colors hover:text-[var(--color-ink)]"
-      >
+    <TableHead aria-sort={ariaSort} className="text-right">
+      <Button variant="ghost" size="sm" className="-mr-2" onClick={() => onSort(sortKey)}>
         {label}
-        <SortIcon dir={active} />
-      </button>
-    </th>
+        <Icon aria-hidden="true" data-icon="inline-end" className={active ? "text-primary" : ""} />
+      </Button>
+    </TableHead>
   );
 }
-
-function SortIcon({ dir }: { dir: SortDir | null }) {
-  const on = "var(--color-accent)";
-  const off = "var(--color-ink-muted)";
-  return (
-    <svg width="10" height="14" viewBox="0 0 10 14" fill="none" aria-hidden="true">
-      <path
-        d="M2 5.5 5 2.5l3 3"
-        stroke={dir === "asc" ? on : off}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M2 8.5l3 3 3-3"
-        stroke={dir === "desc" ? on : off}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-const money = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
 
 function CarRow({ car, showColor }: { car: Car; showColor: boolean }) {
   const foreign =
     car.priceOriginal != null && car.currencyOriginal && car.currencyOriginal !== "USD";
 
   return (
-    <tr className="animate-fade-up border-b border-[var(--color-line)]/60 transition-colors last:border-b-0 hover:bg-[var(--color-surface-2)]">
-      <td className="max-w-[260px] px-4 py-3">
+    <TableRow>
+      <TableCell className="max-w-[260px]">
         <a
           href={car.link}
           target="_blank"
           rel="noreferrer"
-          className="block truncate font-medium text-[var(--color-ink)] underline decoration-transparent decoration-1 underline-offset-4 transition-colors hover:text-[var(--color-accent)] hover:decoration-current"
+          className="block truncate font-medium underline decoration-transparent underline-offset-4 transition-colors hover:text-primary hover:decoration-current"
         >
           {car.name}
         </a>
         {car.model && (
-          <span className="block truncate text-xs text-[var(--color-ink-muted)]">{car.model}</span>
+          <span className="block truncate text-xs text-muted-foreground">{car.model}</span>
         )}
-      </td>
-      <td className="px-4 py-3 text-right font-mono tabular-nums">
+      </TableCell>
+      <TableCell className="text-right font-mono tabular-nums">
         {car.priceUsd != null ? (
-          <span className="font-medium text-[var(--color-accent)]">
-            ${money(car.priceUsd)}
-          </span>
+          <span className="font-medium text-primary">${money(car.priceUsd)}</span>
         ) : (
-          <span className="text-[var(--color-ink-muted)]">—</span>
+          <span className="text-muted-foreground">—</span>
         )}
         {foreign && (
-          <span className="block text-xs text-[var(--color-ink-muted)]">
+          <span className="block text-xs text-muted-foreground">
             {money(car.priceOriginal!)} {car.currencyOriginal}
           </span>
         )}
-      </td>
-      <Num value={car.year?.toString()} />
-      <Num value={car.km?.toLocaleString("es-AR")} />
-      <Text value={car.transmission} />
-      {showColor && <Text value={car.color} />}
-    </tr>
+      </TableCell>
+      <NumCell value={car.year?.toString()} />
+      <NumCell value={car.km?.toLocaleString("es-AR")} />
+      <TableCell className="text-muted-foreground">{car.transmission ?? "—"}</TableCell>
+      {showColor && <TableCell className="text-muted-foreground">{car.color ?? "—"}</TableCell>}
+    </TableRow>
   );
 }
 
-function Num({ value }: { value: string | undefined }) {
+function NumCell({ value }: { value: string | undefined }) {
   return (
-    <td className="px-4 py-3 text-right font-mono tabular-nums text-[var(--color-ink-dim)]">
+    <TableCell className="text-right font-mono tabular-nums text-muted-foreground">
       {value ?? "—"}
-    </td>
+    </TableCell>
   );
 }
 
-function Text({ value }: { value: string | null }) {
-  return <td className="px-4 py-3 text-[var(--color-ink-dim)]">{value ?? "—"}</td>;
+function ResultsSkeleton() {
+  return (
+    <div className="rounded-lg border bg-card p-4" aria-busy="true" aria-label="Cargando resultados">
+      <div className="space-y-4">
+        {Array.from({ length: 4 }, (_, i) => (
+          <div key={i} className="flex items-center justify-between gap-6">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+            <Skeleton className="h-4 w-16" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }

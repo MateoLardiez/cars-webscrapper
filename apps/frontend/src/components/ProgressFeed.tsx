@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import type { SseEvent } from "@cars-webscrapper/shared";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
 export default function ProgressFeed({ events }: { events: SseEvent[] }) {
   const [showThoughts, setShowThoughts] = useState(false);
@@ -14,30 +19,32 @@ export default function ProgressFeed({ events }: { events: SseEvent[] }) {
   }, [visible.length]);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)]">
-      <div className="flex items-center justify-between border-b border-[var(--color-line)] bg-[var(--color-surface-2)]/60 px-4 py-2">
-        <span className="text-xs text-[var(--color-ink-dim)]">Registro del agente</span>
-        <label className="flex cursor-pointer items-center gap-2 text-xs text-[var(--color-ink-muted)] hover:text-[var(--color-ink-dim)]">
-          <input
-            type="checkbox"
+    <div className="overflow-hidden rounded-lg border bg-card">
+      <div className="flex items-center justify-between px-4 py-2.5">
+        <span className="text-xs text-muted-foreground">Registro del agente</span>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="show-thoughts"
             checked={showThoughts}
-            onChange={(e) => setShowThoughts(e.target.checked)}
-            className="h-3.5 w-3.5 accent-[var(--color-accent)]"
+            onCheckedChange={(checked) => setShowThoughts(checked === true)}
           />
-          Mostrar razonamiento
-        </label>
+          <Label htmlFor="show-thoughts" className="text-xs font-normal text-muted-foreground">
+            Mostrar razonamiento
+          </Label>
+        </div>
       </div>
+      <Separator />
       <ul
         ref={scrollRef}
-        className="max-h-[480px] space-y-2 overflow-y-auto p-3 font-mono text-xs leading-relaxed"
+        className="max-h-[480px] space-y-2.5 overflow-y-auto p-3 font-mono text-xs leading-relaxed"
       >
         {visible.length === 0 && (
-          <li className="text-[var(--color-ink-muted)]">Sin actividad todavía.</li>
+          <li className="text-muted-foreground">Sin actividad todavía.</li>
         )}
         {visible.map((e, i) => (
-          <li key={i} className="animate-slide-in flex gap-2">
+          <li key={i} className="animate-slide-in flex items-start gap-2">
             <Tag type={e.type} />
-            <span className="flex-1 break-words text-[var(--color-ink-dim)]">{getText(e)}</span>
+            <span className="min-w-0 flex-1 break-words text-muted-foreground">{getText(e)}</span>
           </li>
         ))}
       </ul>
@@ -45,16 +52,21 @@ export default function ProgressFeed({ events }: { events: SseEvent[] }) {
   );
 }
 
+const TAGS: Record<SseEvent["type"], { text: string; tone: string }> = {
+  agent_thinking: { text: "razonamiento", tone: "text-muted-foreground" },
+  tool_call: { text: "herramienta", tone: "text-primary" },
+  car_saved: { text: "guardado", tone: "text-success" },
+  extraction_failed: { text: "error", tone: "text-destructive" },
+  done: { text: "listo", tone: "text-success" },
+};
+
 function Tag({ type }: { type: SseEvent["type"] }) {
-  const map = {
-    agent_thinking: { text: "razonamiento", color: "text-[var(--color-ink-muted)]" },
-    tool_call: { text: "herramienta", color: "text-[var(--color-accent)]" },
-    car_saved: { text: "guardado", color: "text-[var(--color-success)]" },
-    extraction_failed: { text: "error", color: "text-[var(--color-danger)]" },
-    done: { text: "listo", color: "text-[var(--color-success)]" },
-  };
-  const { text, color } = map[type];
-  return <span className={`shrink-0 ${color}`}>[{text}]</span>;
+  const { text, tone } = TAGS[type];
+  return (
+    <Badge variant="outline" className={cn("shrink-0 font-mono", tone)}>
+      {text}
+    </Badge>
+  );
 }
 
 function getText(e: SseEvent): string {

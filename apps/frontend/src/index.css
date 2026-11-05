@@ -1,67 +1,109 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
 
-@theme {
-  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, monospace;
-}
+/* El tema oscuro sigue al sistema, no a una clase .dark */
+@custom-variant dark (@media (prefers-color-scheme: dark));
 
-/* Tema claro por defecto, oscuro si el sistema lo pide.
-   Todos los pares texto/fondo superan 4.5:1. */
+/* Nombres de token de shadcn/ui con la paleta propia del proyecto.
+   Claro por defecto, oscuro si el sistema lo pide. Todos los pares
+   texto/fondo superan 4.5:1. */
 :root {
   color-scheme: light dark;
 
-  --color-canvas: #f6f7f9;
-  --color-surface: #ffffff;
-  --color-surface-2: #eef1f5;
-  --color-line: #d9dee6;
-  --color-ink: #12161d;
-  --color-ink-dim: #424b59;
-  --color-ink-muted: #5f6b7a;
-  --color-accent: #2456d8;
-  --color-accent-hover: #1b44b4;
-  --color-accent-ink: #ffffff;
-  --color-success: #0b7a4b;
-  --color-danger: #c42b45;
+  --background: #f6f7f9;
+  --foreground: #12161d;
+  --card: #ffffff;
+  --card-foreground: #12161d;
+  --popover: #ffffff;
+  --popover-foreground: #12161d;
+  --primary: #2456d8;
+  --primary-foreground: #ffffff;
+  --secondary: #eef1f5;
+  --secondary-foreground: #12161d;
+  --muted: #eef1f5;
+  --muted-foreground: #5f6b7a;
+  --accent: #eef1f5;
+  --accent-foreground: #12161d;
+  --destructive: #c42b45;
+  --border: #d9dee6;
+  --input: #d9dee6;
+  --ring: #2456d8;
+  --success: #0b7a4b;
+  --radius: 0.5rem;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-canvas: #0e1116;
-    --color-surface: #161a21;
-    --color-surface-2: #1e242d;
-    --color-line: #2d3541;
-    --color-ink: #eceff4;
-    --color-ink-dim: #a6afbd;
-    --color-ink-muted: #8c96a6;
-    --color-accent: #7aa2ff;
-    --color-accent-hover: #9bb8ff;
-    --color-accent-ink: #0b1220;
-    --color-success: #34d399;
-    --color-danger: #fb7185;
+    --background: #0e1116;
+    --foreground: #eceff4;
+    --card: #161a21;
+    --card-foreground: #eceff4;
+    --popover: #161a21;
+    --popover-foreground: #eceff4;
+    --primary: #7aa2ff;
+    --primary-foreground: #0b1220;
+    --secondary: #1e242d;
+    --secondary-foreground: #eceff4;
+    --muted: #1e242d;
+    --muted-foreground: #8c96a6;
+    --accent: #1e242d;
+    --accent-foreground: #eceff4;
+    --destructive: #fb7185;
+    --border: #2d3541;
+    --input: #2d3541;
+    --ring: #7aa2ff;
+    --success: #34d399;
   }
 }
 
-html, body {
-  background: var(--color-canvas);
-  color: var(--color-ink);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
+@theme inline {
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+  --font-heading: var(--font-sans);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
 }
 
-/* Anillo de foco visible solo con teclado */
-:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
-::selection {
-  background: var(--color-accent);
-  color: var(--color-accent-ink);
-}
-
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  ::selection {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
 }
 
 @keyframes slideIn {
@@ -69,7 +111,6 @@ html, body {
   to { opacity: 1; transform: translateX(0); }
 }
 
-.animate-fade-up { animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .animate-slide-in { animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
 @media (prefers-reduced-motion: reduce) {

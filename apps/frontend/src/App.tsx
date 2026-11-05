@@ -2,16 +2,18 @@ import { Routes, Route, NavLink, Link } from "react-router-dom";
 import SearchPage from "./pages/SearchPage.js";
 import HistoryPage from "./pages/HistoryPage.js";
 import HistoryDetailPage from "./pages/HistoryDetailPage.js";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function App() {
   return (
     <div className="min-h-screen">
-      <header className="border-b border-[var(--color-line)] bg-[var(--color-surface)]">
+      <header className="border-b bg-card">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6 sm:px-8">
-          <Link to="/" className="text-base font-semibold tracking-tight text-[var(--color-ink)]">
-            Autos <span className="font-normal text-[var(--color-ink-muted)]">Scraper</span>
+          <Link to="/" className="text-base font-semibold tracking-tight">
+            Autos <span className="font-normal text-muted-foreground">Scraper</span>
           </Link>
-          <nav className="flex h-full gap-1 text-sm">
+          <nav className="flex gap-1">
             <NavItem to="/" label="Buscar" />
             <NavItem to="/history" label="Historial" />
           </nav>
@@ -24,34 +26,27 @@ export default function App() {
           <Route path="/history/:id" element={<HistoryDetailPage />} />
         </Routes>
       </main>
-      <footer className="border-t border-[var(--color-line)] py-6 text-center text-xs text-[var(--color-ink-muted)]">
+      <footer className="border-t py-6 text-center text-xs text-muted-foreground">
         Impulsado por Claude Agent SDK y Playwright MCP
       </footer>
     </div>
   );
 }
 
+// NavLink con la misma apariencia que un Button de shadcn: el enlace activo se resalta.
 function NavItem({ to, label }: { to: string; label: string }) {
   return (
     <NavLink
       to={to}
       end={to === "/"}
       className={({ isActive }) =>
-        `relative flex items-center px-3 font-medium transition-colors ${
-          isActive
-            ? "text-[var(--color-ink)]"
-            : "text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]"
-        }`
+        cn(
+          buttonVariants({ variant: isActive ? "secondary" : "ghost", size: "default" }),
+          !isActive && "text-muted-foreground"
+        )
       }
     >
-      {({ isActive }) => (
-        <>
-          {label}
-          {isActive && (
-            <span className="absolute -bottom-px left-3 right-3 h-0.5 bg-[var(--color-accent)]" />
-          )}
-        </>
-      )}
+      {label}
     </NavLink>
   );
 }

@@ -1,3 +1,7 @@
+import { CircleAlert, CircleCheck, LoaderCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { cn } from "@/lib/utils";
+
 interface Props {
   status: "idle" | "running" | "done" | "failed";
   summary: { carsFound: number; durationMs: number } | null;
@@ -9,40 +13,41 @@ export default function StatusBanner({ status, summary, failure }: Props) {
 
   const config = {
     running: {
-      tag: "En ejecución",
-      color: "var(--color-accent)",
+      title: "En ejecución",
       detail: "El agente está navegando la página…",
-      dot: "animate-pulse",
+      Icon: LoaderCircle,
+      tone: "text-primary",
+      spin: true,
     },
     done: {
-      tag: "Completado",
-      color: "var(--color-success)",
+      title: "Completado",
       detail: summary
         ? `${summary.carsFound} autos · ${(summary.durationMs / 1000).toFixed(1)} s`
         : "",
-      dot: "",
+      Icon: CircleCheck,
+      tone: "text-success",
+      spin: false,
     },
     failed: {
-      tag: "Fallido",
-      color: "var(--color-danger)",
+      title: "Fallido",
       detail: failure ?? "Error desconocido",
-      dot: "",
+      Icon: CircleAlert,
+      tone: "",
+      spin: false,
     },
   }[status];
 
   return (
-    <div
+    <Alert
       role="status"
-      className="flex items-center gap-3 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-4 py-3"
+      variant={status === "failed" ? "destructive" : "default"}
+      className={cn(status !== "failed" && config.tone)}
     >
-      <span
-        className={`h-2 w-2 shrink-0 rounded-full ${config.dot}`}
-        style={{ background: config.color }}
-      />
-      <span className="text-sm font-medium" style={{ color: config.color }}>
-        {config.tag}
-      </span>
-      <span className="text-sm text-[var(--color-ink-dim)]">{config.detail}</span>
-    </div>
+      <config.Icon aria-hidden="true" className={cn(config.spin && "animate-spin")} />
+      <AlertTitle>{config.title}</AlertTitle>
+      {config.detail && (
+        <AlertDescription className="text-muted-foreground">{config.detail}</AlertDescription>
+      )}
+    </Alert>
   );
 }
