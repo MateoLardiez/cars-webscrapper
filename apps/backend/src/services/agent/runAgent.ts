@@ -1,14 +1,29 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Response } from "express";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { SYSTEM_PROMPT } from "./prompt.js";
 import { buildMcpServer, AgentFailureError } from "./tools.js";
 import { sendSseEvent } from "../../lib/sse.js";
 
+// Scrapling MCP server lives inside the repo (see tools/scrapling/setup.sh)
+const SCRAPLING_DIR = fileURLToPath(
+  new URL("../../../../../tools/scrapling/", import.meta.url)
+);
+const SCRAPLING_BIN = join(
+  SCRAPLING_DIR,
+  process.platform === "win32" ? ".venv/Scripts/scrapling-mcp.exe" : ".venv/bin/scrapling-mcp"
+);
+
 export async function runAgent(
   searchId: number,
   userQuery: string,
   res: Response
 ) {
+  if (!existsSync(SCRAPLING_BIN)) {
+    throw new Error("Scrapling is not installed. Run: npm run setup:scrapling");
+  }
   const carsServer = buildMcpServer(searchId, res);
 
   for await (const message of query({
@@ -17,9 +32,11 @@ export async function runAgent(
       systemPrompt: SYSTEM_PROMPT,
       permissionMode: "bypassPermissions",
       maxTurns: 50,
-      pathToClaudeCodeExecutable: "/home/mateo/.local/bin/claude",
       mcpServers: {
-        playwright: { command: "npx", args: ["@playwright/mcp@latest", "--headless"] },
+        scrapling: {
+          command: SCRAPLING_BIN,
+          env: { PLAYWRIGHT_BROWSERS_PATH: join(SCRAPLING_DIR, ".browsers") },
+        },
         cars: carsServer,
       },
     },
