@@ -8,6 +8,8 @@ apps/backend/.playwright-mcp
 
 
 # AI
+.claude
 .cursor
 .playwright-mcp
+.impeccable
 .archify
