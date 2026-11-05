@@ -31,6 +31,7 @@ export async function runAgent(
   for await (const message of query({
     prompt: userQuery,
     options: {
+      model: "claude-haiku-5-5",
       systemPrompt: SYSTEM_PROMPT,
       permissionMode: "bypassPermissions",
       maxTurns: 50,
