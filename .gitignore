@@ -10,3 +10,4 @@ apps/backend/.playwright-mcp
 # AI
 .cursor
 .playwright-mcp
+.archify
