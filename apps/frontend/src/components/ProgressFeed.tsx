@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { formatUsage } from "@/lib/format";
 
 export default function ProgressFeed({ events }: { events: SseEvent[] }) {
   const [showThoughts, setShowThoughts] = useState(false);
@@ -80,6 +81,8 @@ function getText(e: SseEvent): string {
     case "extraction_failed":
       return e.reason;
     case "done":
-      return `${e.carsFound} autos · ${(e.durationMs / 1000).toFixed(1)} s`;
+      return [`${e.carsFound} autos · ${(e.durationMs / 1000).toFixed(1)} s`, formatUsage(e.usage)]
+        .filter(Boolean)
+        .join(" · ");
   }
 }

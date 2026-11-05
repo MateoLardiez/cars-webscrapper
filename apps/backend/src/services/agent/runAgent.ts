@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Response } from "express";
+import type { UsageSummary } from "@cars-webscrapper/shared";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { SYSTEM_PROMPT } from "./prompt.js";
 import { buildMcpServer, AgentFailureError } from "./tools.js";
@@ -19,7 +20,8 @@ const SCRAPLING_BIN = join(
 export async function runAgent(
   searchId: number,
   userQuery: string,
-  res: Response
+  res: Response,
+  onUsage: (usage: UsageSummary) => void
 ) {
   if (!existsSync(SCRAPLING_BIN)) {
     throw new Error("Scrapling is not installed. Run: npm run setup:scrapling");
@@ -41,6 +43,15 @@ export async function runAgent(
       },
     },
   })) {
+    if (message.type === "result") {
+      onUsage({
+        inputTokens: message.usage.input_tokens,
+        outputTokens: message.usage.output_tokens,
+        cacheReadTokens: message.usage.cache_read_input_tokens,
+        cacheCreationTokens: message.usage.cache_creation_input_tokens,
+        costUsd: message.total_cost_usd,
+      });
+    }
     if (message.type === "assistant") {
       for (const block of message.message.content) {
         if (block.type === "text" && block.text) {

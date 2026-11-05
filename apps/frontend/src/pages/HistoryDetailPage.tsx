@@ -1,6 +1,7 @@
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, SearchX } from "lucide-react";
 import { useSearchDetail } from "../hooks/useSearchDetail.js";
+import { formatCost, formatTokens, totalTokens } from "@/lib/format";
 import ResultsTable from "../components/ResultsTable.js";
 import StatusBadge from "../components/StatusBadge.js";
 import { Button } from "@/components/ui/button";
@@ -59,6 +60,30 @@ export default function HistoryDetailPage() {
             <StatusBadge status={data.status} />
           </Meta>
           <Meta label="Autos">{data.carsFound}</Meta>
+          <Meta label="Costo">{data.costUsd === null ? "Sin datos" : formatCost(data.costUsd)}</Meta>
+          <Meta label="Tokens">
+            {data.inputTokens === null ||
+            data.outputTokens === null ||
+            data.cacheReadTokens === null ||
+            data.cacheCreationTokens === null ? (
+              "Sin datos"
+            ) : (
+              <>
+                {formatTokens(
+                  totalTokens({
+                    inputTokens: data.inputTokens,
+                    outputTokens: data.outputTokens,
+                    cacheReadTokens: data.cacheReadTokens,
+                    cacheCreationTokens: data.cacheCreationTokens,
+                  })
+                )}
+                <span className="block text-xs text-muted-foreground">
+                  entrada {formatTokens(data.inputTokens)} · salida {formatTokens(data.outputTokens)} ·
+                  caché {formatTokens(data.cacheReadTokens + data.cacheCreationTokens)}
+                </span>
+              </>
+            )}
+          </Meta>
         </dl>
       </section>
 

@@ -1,10 +1,12 @@
 import { CircleAlert, CircleCheck, LoaderCircle } from "lucide-react";
+import type { UsageSummary } from "@cars-webscrapper/shared";
+import { formatUsage } from "@/lib/format";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 
 interface Props {
   status: "idle" | "running" | "done" | "failed";
-  summary: { carsFound: number; durationMs: number } | null;
+  summary: { carsFound: number; durationMs: number; usage: UsageSummary | null } | null;
   failure: string | null;
 }
 
@@ -22,7 +24,12 @@ export default function StatusBanner({ status, summary, failure }: Props) {
     done: {
       title: "Completado",
       detail: summary
-        ? `${summary.carsFound} autos · ${(summary.durationMs / 1000).toFixed(1)} s`
+        ? [
+            `${summary.carsFound} autos · ${(summary.durationMs / 1000).toFixed(1)} s`,
+            formatUsage(summary.usage),
+          ]
+            .filter(Boolean)
+            .join(" · ")
         : "",
       Icon: CircleCheck,
       tone: "text-success",

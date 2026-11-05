@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import type { Car, SseEvent } from "@cars-webscrapper/shared";
+import type { Car, SseEvent, UsageSummary } from "@cars-webscrapper/shared";
 import { streamSearch } from "../lib/api.js";
 
 type Status = "idle" | "running" | "done" | "failed";
@@ -8,7 +8,11 @@ export function useSearchStream() {
   const [status, setStatus] = useState<Status>("idle");
   const [events, setEvents] = useState<SseEvent[]>([]);
   const [cars, setCars] = useState<Car[]>([]);
-  const [summary, setSummary] = useState<{ carsFound: number; durationMs: number } | null>(null);
+  const [summary, setSummary] = useState<{
+    carsFound: number;
+    durationMs: number;
+    usage: UsageSummary | null;
+  } | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   const run = useCallback(async (query: string) => {
@@ -25,7 +29,11 @@ export function useSearchStream() {
           setCars((prev) => [...prev, event.car]);
         }
         if (event.type === "done") {
-          setSummary({ carsFound: event.carsFound, durationMs: event.durationMs });
+          setSummary({
+            carsFound: event.carsFound,
+            durationMs: event.durationMs,
+            usage: event.usage,
+          });
           setStatus("done");
         }
         if (event.type === "extraction_failed") {

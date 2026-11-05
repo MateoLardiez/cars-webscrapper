@@ -17,6 +17,11 @@ model Search {
   failureReason  String?
   durationMs     Int?
   carsFound      Int     @default(0)
+  inputTokens         Int?
+  outputTokens        Int?
+  cacheReadTokens     Int?
+  cacheCreationTokens Int?
+  costUsd             Float?
   cars           Car[]
 }
 

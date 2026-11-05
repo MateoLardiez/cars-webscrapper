@@ -1,3 +1,4 @@
+import type { UsageSummary } from "@cars-webscrapper/shared";
 import { db } from "../lib/db.js";
 
 export const searchRepository = {
@@ -21,18 +22,23 @@ export const searchRepository = {
     return db.search.findUnique({ where: { id }, include: { cars: true } });
   },
 
-  async markDone(id: number, durationMs: number) {
+  async markDone(id: number, durationMs: number, usage: UsageSummary | null = null) {
     const carsFound = await db.car.count({ where: { searchId: id } });
     return db.search.update({
       where: { id },
-      data: { status: "done", durationMs, carsFound },
+      data: { status: "done", durationMs, carsFound, ...usage },
     });
   },
 
-  async markFailed(id: number, reason: string, durationMs: number) {
+  async markFailed(
+    id: number,
+    reason: string,
+    durationMs: number,
+    usage: UsageSummary | null = null
+  ) {
     return db.search.update({
       where: { id },
-      data: { status: "failed", failureReason: reason, durationMs },
+      data: { status: "failed", failureReason: reason, durationMs, ...usage },
     });
   },
 
