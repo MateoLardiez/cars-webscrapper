@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from cars_extractors.kavak import next_page_url, parse_listing_cards, parse_listing_details
+from cars_extractors.kavak import next_page_url, results_url, parse_listing_cards, parse_listing_details
 from cars_extractors.registry import get_adapter
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -68,7 +68,10 @@ def test_next_page(list_html):
 
 def test_registry():
     assert get_adapter(SLUG_URL) is not None
+    assert get_adapter("https://www.kavak.com/ar") is not None
+    assert get_adapter("https://www.kavak.com/ar/") is not None
     assert get_adapter("https://www.kavak.com/mx/seminuevos") is None
+    assert get_adapter("https://www.kavak.com/arxyz") is None
     assert get_adapter("https://example.com/cars") is None
 
 
@@ -79,3 +82,9 @@ def test_empty_car_node_is_rejected():
     )
     with pytest.raises(ValueError):
         parse_listing_details(html, SLUG_URL)
+
+
+def test_home_resolves_to_results_page():
+    assert results_url("https://www.kavak.com/ar") == "https://www.kavak.com/ar/usados"
+    assert results_url("https://www.kavak.com/ar/?x=1") == "https://www.kavak.com/ar/usados"
+    assert results_url("https://www.kavak.com/ar/usados/ford") == "https://www.kavak.com/ar/usados/ford"

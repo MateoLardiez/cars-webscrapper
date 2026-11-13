@@ -19,6 +19,8 @@ def _fetch_html(url: str) -> str:
     page = Fetcher.get(url, impersonate="chrome", stealthy_headers=True)
     if page.status == 200:
         return page.html_content
+    if page.status not in (403, 429) and page.status < 500:
+        raise RuntimeError(f"HTTP {page.status}")  # 404 and similar: a browser will not help
     page = StealthyFetcher.fetch(url, headless=True, network_idle=True)
     if page.status != 200:
         raise RuntimeError(f"HTTP {page.status}")
@@ -41,13 +43,22 @@ def list_listings(url: str) -> dict[str, Any]:
     transmission, price) and the next page URL. Use these only to choose
     candidates; fetch details with get_listing_details before saving."""
 
+    target = url
+    adapter = get_adapter(url)
+    if adapter is not None and hasattr(adapter, "results_url"):
+        target = adapter.results_url(url)
+
     def work(adapter: Any, html: str) -> dict[str, Any]:
+        listings = adapter.parse_listing_cards(html, target)
+        if not listings:
+            raise ValueError("No listing cards found. This page is not a results page.")
         return {
-            "listings": adapter.parse_listing_cards(html, url),
-            "next_page_url": adapter.next_page_url(html, url),
+            "url_used": target,
+            "listings": listings,
+            "next_page_url": adapter.next_page_url(html, target),
         }
 
-    return _run(url, work)
+    return _run(target, work)
 
 
 MAX_BATCH = 10

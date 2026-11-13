@@ -14,7 +14,7 @@ from scrapling.parser import Selector
 from .numbers import parse_es_ar_number
 
 HOSTNAME = "www.kavak.com"
-PATH_PREFIX = "/ar/"
+PATH_PREFIX = "/ar"
 
 
 def _car_node(page: Selector) -> dict[str, Any] | None:
@@ -66,6 +66,14 @@ def parse_listing_details(html: str, url: str) -> dict[str, Any]:
         "characteristics": ", ".join(p for p in parts if p) or None,
         "link": car.get("url") or url,
     }
+
+
+def results_url(url: str) -> str:
+    """The home page has no cards: use the general results page instead."""
+    parsed = urlparse(url)
+    if parsed.path.rstrip("/") == PATH_PREFIX:
+        return urlunparse(parsed._replace(path=f"{PATH_PREFIX}/usados", query="", fragment=""))
+    return url
 
 
 def parse_listing_cards(html: str, base_url: str) -> list[dict[str, Any]]:

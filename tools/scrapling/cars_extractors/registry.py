@@ -16,4 +16,5 @@ def get_adapter(url: str) -> ModuleType | None:
     if entry is None:
         return None
     prefix, module = entry
-    return module if parsed.path.startswith(prefix) else None
+    path = parsed.path
+    return module if path == prefix or path.startswith(prefix + "/") else None
