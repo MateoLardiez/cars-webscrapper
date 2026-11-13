@@ -17,6 +17,12 @@ const SCRAPLING_BIN = join(
   process.platform === "win32" ? ".venv/Scripts/scrapling-mcp.exe" : ".venv/bin/scrapling-mcp"
 );
 
+const CARS_PYTHON = join(
+  SCRAPLING_DIR,
+  process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python"
+);
+const CARS_MCP_SCRIPT = join(SCRAPLING_DIR, "cars_mcp.py");
+
 export async function runAgent(
   searchId: number,
   userQuery: string,
@@ -34,10 +40,16 @@ export async function runAgent(
       model: "claude-haiku-5-5",
       systemPrompt: SYSTEM_PROMPT,
       permissionMode: "bypassPermissions",
-      maxTurns: 50,
+      maxTurns: 25,
       mcpServers: {
         scrapling: {
           command: SCRAPLING_BIN,
+          env: { PLAYWRIGHT_BROWSERS_PATH: join(SCRAPLING_DIR, ".browsers") },
+        },
+        // Code-based extraction (no LLM transcription). See tools/scrapling/cars_mcp.py
+        "cars-extractor": {
+          command: CARS_PYTHON,
+          args: [CARS_MCP_SCRIPT],
           env: { PLAYWRIGHT_BROWSERS_PATH: join(SCRAPLING_DIR, ".browsers") },
         },
         cars: carsServer,
