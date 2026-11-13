@@ -19,7 +19,7 @@ export async function runSearch(userQuery: string, res: Response) {
   const run: { usage: UsageSummary | null } = { usage: null };
 
   try {
-    await runAgent(search.id, userQuery, res, (usage) => {
+    await runAgent(search.id, userQuery, sourceUrl, res, (usage) => {
       run.usage = usage;
     });
 
