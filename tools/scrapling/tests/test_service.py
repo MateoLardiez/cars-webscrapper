@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 import cars_cli
-from cars_extractors.service import get_listing_details, list_listings
+from cars_extractors.service import get_listing_details, list_listings, site_info
 
 FIXTURES = Path(__file__).parent / "fixtures"
 LIST_URL = "https://www.kavak.com/ar/usados"
@@ -65,3 +65,28 @@ def test_cli_prints_only_json(monkeypatch, capsys):
 
 def test_cli_usage_error():
     assert "Usage" in cars_cli.run(["unknown"])["error"]
+
+
+def test_site_info():
+    assert site_info("https://www.kavak.com/ar") == {"supported": True, "currency": "ARS"}
+    assert site_info("https://www.example.com")["supported"] is False
+
+
+def test_list_applies_filters_to_the_url():
+    html = (FIXTURES / "kavak_list.html").read_text()
+    requested: list[str] = []
+
+    def fetch(url: str) -> str:
+        requested.append(url)
+        return html
+
+    list_listings("https://www.kavak.com/ar", {"max_km": 100000, "transmission": "manual"}, fetch_html=fetch)
+    assert requested == [f"{LIST_URL}?max_km=100000&transmission=manual"]
+
+
+def test_cli_list_with_filters(monkeypatch):
+    calls = []
+    monkeypatch.setattr(cars_cli, "list_listings", lambda url, filters: calls.append((url, filters)) or {})
+    cars_cli.run(["list", "https://a.com", '{"max_km": 1}'])
+    cars_cli.run(["list", "https://a.com"])
+    assert calls == [("https://a.com", {"max_km": 1}), ("https://a.com", None)]

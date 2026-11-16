@@ -77,6 +77,34 @@ def results_url(url: str) -> str:
     return url
 
 
+# Generic filter name -> Kavak query parameter
+_FILTER_PARAMS = {
+    "min_km": "min_km",
+    "max_km": "max_km",
+    "min_price": "min_price",
+    "max_price": "max_price",
+    "transmission": "transmission",
+}
+_TRANSMISSION_VALUES = {"manual": "manual", "automatic": "automatico"}
+
+
+def filtered_url(url: str, filters: dict[str, Any]) -> str:
+    """Add the search filters to a results URL so Kavak returns only matching
+    cards. Prices are in CARD_CURRENCY. A parameter already in the URL is kept."""
+    parsed = urlparse(url)
+    query = parse_qs(parsed.query)
+    for name, param in _FILTER_PARAMS.items():
+        value = filters.get(name)
+        if value is None or param in query:
+            continue
+        if name == "transmission":
+            value = _TRANSMISSION_VALUES.get(value)
+            if value is None:
+                continue
+        query[param] = [str(value)]
+    return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
+
+
 def parse_listing_cards(html: str, base_url: str) -> list[dict[str, Any]]:
     """Summary of each card in a results page (year, km, transmission, price)."""
     page = Selector(html)

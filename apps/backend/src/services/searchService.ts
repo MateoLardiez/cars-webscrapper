@@ -37,9 +37,11 @@ async function tryPipeline(
     return false;
   }
 
+  const converter = createUsdConverter();
   const result = await runPipeline(sourceUrl, filters, {
     extractor: createExtractor(),
-    toUsd: createUsdConverter(),
+    toUsd: converter.toUsd,
+    usdRate: converter.usdRate,
     saveCar: async (car) => {
       const saved = await carRepository.create({ ...car, searchId });
       sendSseEvent(res, { type: "car_saved", car: saved });

@@ -13,10 +13,24 @@ function cliReturning(output: unknown) {
 describe("createExtractor", () => {
   it("passes the list and details commands to the CLI", async () => {
     const { extractor, calls } = cliReturning({ supported: false, error: "No adapter for this site." });
+    await extractor.site("https://a.com");
     await extractor.list("https://a.com");
+    await extractor.list("https://a.com", {
+      min_km: null,
+      max_km: 100000,
+      min_price: null,
+      max_price: null,
+      transmission: "manual",
+    });
     await extractor.details(["https://a.com/1", "https://a.com/2"]);
     expect(calls).toEqual([
+      ["site", "https://a.com"],
       ["list", "https://a.com"],
+      [
+        "list",
+        "https://a.com",
+        '{"min_km":null,"max_km":100000,"min_price":null,"max_price":null,"transmission":"manual"}',
+      ],
       ["details", "https://a.com/1", "https://a.com/2"],
     ]);
   });

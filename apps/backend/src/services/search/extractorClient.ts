@@ -56,13 +56,30 @@ const DetailsResultSchema = z.union([
   }),
 ]);
 
+const SiteInfoSchema = z.union([
+  UnsupportedSchema,
+  z.object({ supported: z.literal(true), currency: z.string().nullable() }),
+]);
+
 export type ListingCard = z.infer<typeof CardSchema>;
 export type ListingDetails = z.infer<typeof ListingSchema>;
 export type ListResult = z.infer<typeof ListResultSchema>;
 export type DetailsResult = z.infer<typeof DetailsResultSchema>;
+export type SiteInfo = z.infer<typeof SiteInfoSchema>;
+
+// Filters the site can apply in its own results URL. Prices in the site's card currency.
+// They only narrow the pages to read: the pipeline still checks every listing.
+export interface SiteFilters {
+  min_km: number | null;
+  max_km: number | null;
+  min_price: number | null;
+  max_price: number | null;
+  transmission: "manual" | "automatic" | null;
+}
 
 export interface Extractor {
-  list(url: string): Promise<ListResult>;
+  site(url: string): Promise<SiteInfo>;
+  list(url: string, filters?: SiteFilters): Promise<ListResult>;
   details(urls: string[]): Promise<DetailsResult>;
 }
 
@@ -81,8 +98,12 @@ const runCarsCli: RunCli = async (args) => {
 
 export function createExtractor(runCli: RunCli = runCarsCli): Extractor {
   return {
-    async list(url) {
-      return ListResultSchema.parse(JSON.parse(await runCli(["list", url])));
+    async site(url) {
+      return SiteInfoSchema.parse(JSON.parse(await runCli(["site", url])));
+    },
+    async list(url, filters) {
+      const args = filters ? ["list", url, JSON.stringify(filters)] : ["list", url];
+      return ListResultSchema.parse(JSON.parse(await runCli(args)));
     },
     async details(urls) {
       return DetailsResultSchema.parse(JSON.parse(await runCli(["details", ...urls])));

@@ -30,13 +30,32 @@ def _fetch_html(url: str) -> str:
 FetchHtml = Callable[[str], str]
 
 
-def list_listings(url: str, fetch_html: FetchHtml = _fetch_html) -> dict[str, Any]:
+def site_info(url: str) -> dict[str, Any]:
+    """Whether the site has an adapter, and the currency its result cards use."""
+    adapter = get_adapter(url)
+    if adapter is None:
+        return dict(UNSUPPORTED)
+    return {"supported": True, "currency": getattr(adapter, "CARD_CURRENCY", None)}
+
+
+def list_listings(
+    url: str,
+    filters: dict[str, Any] | None = None,
+    fetch_html: FetchHtml = _fetch_html,
+) -> dict[str, Any]:
     """Cards of a results page (name, link, year, km, transmission, price, currency)
-    and the next page URL."""
+    and the next page URL.
+
+    `filters` (min_km, max_km, min_price, max_price in the card currency,
+    transmission) narrow the results when the adapter can put them in the URL.
+    They only reduce the pages to read: the caller still checks every listing.
+    """
     adapter = get_adapter(url)
     if adapter is None:
         return dict(UNSUPPORTED)
     target = adapter.results_url(url) if hasattr(adapter, "results_url") else url
+    if filters and hasattr(adapter, "filtered_url"):
+        target = adapter.filtered_url(target, filters)
     try:
         html = fetch_html(target)
         listings = adapter.parse_listing_cards(html, target)

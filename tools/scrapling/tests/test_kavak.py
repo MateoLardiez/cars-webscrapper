@@ -88,3 +88,31 @@ def test_home_resolves_to_results_page():
     assert results_url("https://www.kavak.com/ar") == "https://www.kavak.com/ar/usados"
     assert results_url("https://www.kavak.com/ar/?x=1") == "https://www.kavak.com/ar/usados"
     assert results_url("https://www.kavak.com/ar/usados/ford") == "https://www.kavak.com/ar/usados/ford"
+
+
+def test_filtered_url_adds_kavak_params():
+    from cars_extractors.kavak import filtered_url
+
+    url = filtered_url(
+        "https://www.kavak.com/ar/usados",
+        {"min_km": None, "max_km": 100000, "max_price": 15470300, "transmission": "manual"},
+    )
+    assert url == "https://www.kavak.com/ar/usados?max_km=100000&max_price=15470300&transmission=manual"
+
+
+def test_filtered_url_maps_automatic_and_keeps_user_params():
+    from cars_extractors.kavak import filtered_url
+
+    url = filtered_url(
+        "https://www.kavak.com/ar/usados?max_km=50000&page=2",
+        {"max_km": 100000, "transmission": "automatic"},
+    )
+    assert url == "https://www.kavak.com/ar/usados?max_km=50000&page=2&transmission=automatico"
+
+
+def test_filtered_url_is_idempotent():
+    from cars_extractors.kavak import filtered_url
+
+    filters = {"max_km": 100000, "transmission": "manual"}
+    once = filtered_url("https://www.kavak.com/ar/usados", filters)
+    assert filtered_url(once, filters) == once

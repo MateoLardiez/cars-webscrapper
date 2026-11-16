@@ -1,10 +1,11 @@
 import type { SseEvent } from "@cars-webscrapper/shared";
 import type { CreateCarInput } from "../../repositories/carRepository.js";
-import type { ToUsd } from "./currency.js";
-import type { Extractor, ListingDetails } from "./extractorClient.js";
+import type { ToUsd, UsdRate } from "./currency.js";
+import type { Extractor, ListingDetails, SiteFilters } from "./extractorClient.js";
 import { isCandidate, matchesFilters, type SearchFilters } from "./filters.js";
 
-export const MAX_PAGES = 3;
+// Safety cap for sites that cannot filter in the URL. Reading pages costs no LLM tokens.
+export const MAX_PAGES = 50;
 export const DETAILS_BATCH = 10;
 
 export type NewCar = Omit<CreateCarInput, "searchId">;
@@ -12,6 +13,7 @@ export type NewCar = Omit<CreateCarInput, "searchId">;
 export interface PipelineDeps {
   extractor: Extractor;
   toUsd: ToUsd;
+  usdRate: UsdRate;
   saveCar: (car: NewCar) => Promise<void>;
   emit: (event: SseEvent) => void;
 }
@@ -54,6 +56,25 @@ async function saveIfMatches(
   return true;
 }
 
+// The search filters in the site's currency. Min rounds down and max rounds up,
+// so the site never drops a listing the code filter would accept.
+export async function toSiteFilters(
+  filters: SearchFilters,
+  currency: string | null,
+  usdRate: UsdRate
+): Promise<SiteFilters> {
+  const rate = currency === null ? null : await usdRate(currency);
+  const local = (usd: number | null, round: (n: number) => number) =>
+    usd === null || rate === null ? null : round(usd / rate);
+  return {
+    min_km: filters.minKm,
+    max_km: filters.maxKm,
+    min_price: local(filters.minPriceUsd, Math.floor),
+    max_price: local(filters.maxPriceUsd, Math.ceil),
+    transmission: filters.transmission,
+  };
+}
+
 // Deterministic search: list results, pre-filter the cards, open the
 // candidates and save the ones that match. No LLM involved.
 export async function runPipeline(
@@ -67,9 +88,13 @@ export async function runPipeline(
   let pageUrl: string | null = url;
 
   try {
+    const site = await deps.extractor.site(url);
+    if (!site.supported) return { kind: "unsupported" };
+    const siteFilters = await toSiteFilters(filters, site.currency, deps.usdRate);
+
     for (let page = 1; page <= MAX_PAGES && pageUrl !== null; page++) {
       deps.emit({ type: "tool_call", name: "list_listings", summary: pageUrl });
-      const list = await deps.extractor.list(pageUrl);
+      const list = await deps.extractor.list(pageUrl, siteFilters);
       if (!list.supported) return { kind: "unsupported" };
       if ("error" in list) return { kind: "failed", reason: list.error, saved };
 

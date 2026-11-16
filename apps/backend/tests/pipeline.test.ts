@@ -6,9 +6,11 @@ import type {
   ListingCard,
   ListingDetails,
   ListResult,
+  SiteFilters,
+  SiteInfo,
 } from "../src/services/search/extractorClient.js";
 import type { SearchFilters } from "../src/services/search/filters.js";
-import { runPipeline, type NewCar } from "../src/services/search/pipeline.js";
+import { MAX_PAGES, runPipeline, toSiteFilters, type NewCar } from "../src/services/search/pipeline.js";
 
 const BASE = "https://www.kavak.com/ar/venta";
 const ARS_PER_USD = 1000;
@@ -58,14 +60,20 @@ function listing(id: number, overrides: Partial<ListingDetails> = {}): ListingDe
 interface FakeSite {
   pages: Record<string, ListResult>;
   listings: Record<string, ListingDetails>;
+  info?: SiteInfo;
 }
 
 function setup(site: FakeSite) {
   const detailCalls: string[][] = [];
+  const listCalls: { url: string; filters: SiteFilters | undefined }[] = [];
   const saved: NewCar[] = [];
   const events: SseEvent[] = [];
   const extractor: Extractor = {
-    async list(url) {
+    async site() {
+      return site.info ?? { supported: true, currency: "ARS" };
+    },
+    async list(url, filters) {
+      listCalls.push({ url, filters });
       return site.pages[url] ?? { supported: true, error: `no page ${url}` };
     },
     async details(urls): Promise<DetailsResult> {
@@ -82,6 +90,7 @@ function setup(site: FakeSite) {
   const deps = {
     extractor,
     toUsd: async (amount: number, currency: string) => (currency === "ARS" ? amount / ARS_PER_USD : amount),
+    usdRate: async (currency: string) => (currency === "ARS" ? 1 / ARS_PER_USD : 1),
     saveCar: async (car: NewCar) => {
       saved.push(car);
     },
@@ -89,7 +98,7 @@ function setup(site: FakeSite) {
       events.push(event);
     },
   };
-  return { deps, detailCalls, saved, events };
+  return { deps, detailCalls, listCalls, saved, events };
 }
 
 function page(cards: ListingCard[], next: string | null = null): ListResult {
@@ -98,8 +107,34 @@ function page(cards: ListingCard[], next: string | null = null): ListResult {
 
 describe("runPipeline", () => {
   it("reports unsupported sites so the agent can take over", async () => {
-    const { deps } = setup({ pages: { start: { supported: false, error: "No adapter" } }, listings: {} });
+    const { deps, listCalls } = setup({
+      pages: {},
+      listings: {},
+      info: { supported: false, error: "No adapter" },
+    });
     expect(await runPipeline("start", filters, deps)).toEqual({ kind: "unsupported" });
+    expect(listCalls).toEqual([]);
+  });
+
+  it("passes the filters to the site in its currency, on every page", async () => {
+    const { deps, listCalls } = setup({
+      pages: { p1: page([], "p2"), p2: page([]) },
+      listings: {},
+    });
+
+    await runPipeline("p1", filters, deps);
+
+    const expected: SiteFilters = {
+      min_km: null,
+      max_km: 100000,
+      min_price: null,
+      max_price: 10_000_000,
+      transmission: "manual",
+    };
+    expect(listCalls).toEqual([
+      { url: "p1", filters: expected },
+      { url: "p2", filters: expected },
+    ]);
   });
 
   it("opens only the cards that pass the pre-filter and saves the matches", async () => {
@@ -138,24 +173,32 @@ describe("runPipeline", () => {
     expect(saved).toHaveLength(23);
   });
 
-  it("follows next pages up to 3 and skips cards already seen", async () => {
+  it("follows next pages until the last one and skips cards already seen", async () => {
     const { deps, saved } = setup({
       pages: {
         p1: page([card(1)], "p2"),
         p2: page([card(1), card(2)], "p3"),
-        p3: page([card(3)], "p4"),
-        p4: page([card(4)]),
+        p3: page([card(3)]),
       },
       listings: {
         [`${BASE}/1`]: listing(1),
         [`${BASE}/2`]: listing(2),
         [`${BASE}/3`]: listing(3),
-        [`${BASE}/4`]: listing(4),
       },
     });
 
     expect(await runPipeline("p1", filters, deps)).toEqual({ kind: "done", saved: 3 });
     expect(saved.map((car) => car.link)).toEqual([`${BASE}/1`, `${BASE}/2`, `${BASE}/3`]);
+  });
+
+  it(`stops after ${MAX_PAGES} pages`, async () => {
+    const pages = Object.fromEntries(
+      Array.from({ length: MAX_PAGES + 5 }, (_, i) => [`p${i}`, page([], `p${i + 1}`)])
+    );
+    const { deps, listCalls } = setup({ pages, listings: {} });
+
+    expect(await runPipeline("p0", filters, deps)).toEqual({ kind: "done", saved: 0 });
+    expect(listCalls).toHaveLength(MAX_PAGES);
   });
 
   it("saves a canonical listing once when two cards point to it", async () => {
@@ -197,5 +240,20 @@ describe("runPipeline", () => {
       reason: "Exchange rate request failed: HTTP 500",
       saved: 0,
     });
+  });
+});
+
+describe("toSiteFilters", () => {
+  const usdRate = async () => 0.000646; // 1 ARS in USD
+
+  it("rounds the price range outwards so the site never drops a valid listing", async () => {
+    const site = await toSiteFilters({ ...filters, minPriceUsd: 5000 }, "ARS", usdRate);
+    expect(site.min_price).toBe(7739938); // 7739938.08 rounded down
+    expect(site.max_price).toBe(15479877); // 15479876.16 rounded up
+  });
+
+  it("leaves prices out when the site currency is unknown", async () => {
+    const site = await toSiteFilters(filters, null, usdRate);
+    expect(site).toEqual({ min_km: null, max_km: 100000, min_price: null, max_price: null, transmission: "manual" });
   });
 });
