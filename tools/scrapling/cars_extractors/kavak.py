@@ -3,6 +3,7 @@
 Detail: reads the schema.org `Car` node from the page's JSON-LD (stable, no CSS).
 Grid: reads result cards by their `data-testid` (class names are hashed).
 Nothing is ever read from the URL slug, except the link itself.
+The car id (`?id=`) is what identifies a car: the slug alone can open another one.
 """
 
 import json
@@ -34,6 +35,29 @@ def _car_node(page: Selector) -> dict[str, Any] | None:
     return None
 
 
+# A reserved car keeps its price in the page data, but the page hides it and the
+# car cannot be bought: it is not a listing to save.
+_RESERVED_NOTICE = "Este auto está reservado"
+_RESERVED_BADGE = "Reservado"
+
+
+def _with_id(link: str, car_id: str | None) -> str:
+    """Kavak's /venta/<slug> page does not identify one car: many cars share a
+    slug and the server answers with another one. `?id=<car id>` selects the
+    right car (and a person who opens the link sees it)."""
+    if not car_id:
+        return link
+    parsed = urlparse(link)
+    query = parse_qs(parsed.query)
+    query["id"] = [car_id]
+    return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
+
+
+def _id_from_url(url: str) -> str | None:
+    ids = parse_qs(urlparse(url).query).get("id")
+    return ids[0] if ids else None
+
+
 def _to_int(value: Any) -> int | None:
     try:
         return int(str(value).strip())
@@ -51,6 +75,8 @@ def _brand(car: dict[str, Any]) -> str | None:
 
 def parse_listing_details(html: str, url: str) -> dict[str, Any]:
     """Fields of one listing, from the page content only. Missing fields are None."""
+    if _RESERVED_NOTICE in html:
+        raise ValueError("Listing not available (reserved)")
     car = _car_node(Selector(html))
     if car is None:
         raise ValueError("No Car data found in the page")
@@ -78,7 +104,7 @@ def parse_listing_details(html: str, url: str) -> dict[str, Any]:
         "transmission": car.get("vehicleTransmission"),
         "color": car.get("color"),
         "characteristics": ", ".join(p for p in parts if p) or None,
-        "link": car.get("url") or url,
+        "link": _with_id(car.get("url") or url, _id_from_url(url)),
     }
 
 
@@ -90,14 +116,8 @@ def results_url(url: str) -> str:
     return url
 
 
-# Generic filter name -> Kavak query parameter
-_FILTER_PARAMS = {
-    "min_km": "min_km",
-    "max_km": "max_km",
-    "min_price": "min_price",
-    "max_price": "max_price",
-    "transmission": "transmission",
-}
+# Search filters that Kavak takes under the same name as a query parameter
+_FILTER_PARAMS = ("min_km", "max_km", "min_price", "max_price", "transmission")
 _TRANSMISSION_VALUES = {"manual": "manual", "automatic": "automatico"}
 
 
@@ -105,36 +125,38 @@ def filtered_url(url: str, filters: dict[str, Any]) -> str:
     """Add the search filters to a results URL so Kavak returns only matching
     cards. Prices are in CARD_CURRENCY. A parameter already in the URL is kept.
 
-    Brand and model go in the path of the general results page:
-    /ar/usados/<brand>/<model>. A URL that already points to a brand is kept."""
+    Brand and model go in the `maker` and `model` parameters of the general
+    results page (a path like /usados/ford/ka is ignored by Kavak). A model
+    without a brand is ignored."""
     parsed = urlparse(url)
-    brand = filters.get("brand")
-    if brand and parsed.path.rstrip("/") == f"{PATH_PREFIX}/usados":
-        path = f"{PATH_PREFIX}/usados/{slugify(brand)}"
-        if filters.get("model"):
-            path += f"/{slugify(filters['model'])}"
-        parsed = parsed._replace(path=path)
     query = parse_qs(parsed.query)
-    for name, param in _FILTER_PARAMS.items():
-        value = filters.get(name)
-        if value is None or param in query:
-            continue
-        if name == "transmission":
-            value = _TRANSMISSION_VALUES.get(value)
-            if value is None:
-                continue
-        query[param] = [str(value)]
+    values: dict[str, Any] = {name: filters.get(name) for name in _FILTER_PARAMS}
+    if filters.get("transmission") is not None:
+        values["transmission"] = _TRANSMISSION_VALUES.get(filters["transmission"])
+    if filters.get("brand"):
+        values["maker"] = slugify(filters["brand"])
+        if filters.get("model"):
+            values["model"] = slugify(filters["model"])
+    for param, value in values.items():
+        if value is not None and param not in query:
+            query[param] = [str(value)]
     return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
 
 
 def parse_listing_cards(html: str, base_url: str) -> list[dict[str, Any]]:
-    """Summary of each card in a results page (year, km, transmission, price)."""
+    """Summary of each card in a results page (year, km, transmission, price).
+    Reserved cars are left out."""
     page = Selector(html)
     cards: list[dict[str, Any]] = []
     seen: set[str] = set()
     for anchor in page.css('a[data-testid^="card-product-"]'):
-        link = urljoin(base_url, anchor.attrib.get("href", ""))
-        if not link or link in seen:
+        href = anchor.attrib.get("href", "")
+        if not href or _RESERVED_BADGE in anchor.get_all_text():
+            continue
+        # data-testid="card-product-<car id>"
+        car_id = anchor.attrib.get("data-testid", "").removeprefix("card-product-") or None
+        link = _with_id(urljoin(base_url, href), car_id)
+        if link in seen:
             continue
         seen.add(link)
         title = anchor.css("h3")

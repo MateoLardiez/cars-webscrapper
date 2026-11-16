@@ -35,7 +35,7 @@ def test_detail_fields(detail_html):
     assert details["model"] == "Ka"
     assert details["transmission"] == "Manual"
     assert details["color"] == "Gris"
-    assert details["link"] == "https://www.kavak.com/ar/venta/ford-ka-15_s-hatchback-2018"
+    assert details["link"] == "https://www.kavak.com/ar/venta/ford-ka-15_s-hatchback-2018?id=562256"
 
 
 def test_missing_field_is_none_and_never_taken_from_url(detail_html):
@@ -53,7 +53,7 @@ def test_cards(list_html):
     assert len(cards) == 3
     first = cards[0]
     assert first["name"] == "Ford Focus III"
-    assert first["link"] == "https://www.kavak.com/ar/venta/ford-focus_iii-20_titanium-sedan-2019"
+    assert first["link"] == "https://www.kavak.com/ar/venta/ford-focus_iii-20_titanium-sedan-2019?id=562001"
     assert first["year"] == 2019
     assert first["km"] == 75368
     assert first["transmission"] == "Manual"
@@ -140,26 +140,25 @@ def test_details_without_brand_keywords_take_it_from_the_name(detail_html):
     assert parse_listing_details(html, SLUG_URL)["brand"] == "Ford"
 
 
-def test_filtered_url_puts_brand_and_model_in_the_path():
+def test_filtered_url_puts_brand_and_model_in_query_params():
     from cars_extractors.kavak import filtered_url
 
     start = "https://www.kavak.com/ar/usados"
-    assert filtered_url(start, {"brand": "Ford"}) == f"{start}/ford"
-    assert filtered_url(start, {"brand": "Ford", "model": "Ka"}) == f"{start}/ford/ka"
-    assert filtered_url(start, {"brand": "Citroën", "model": "C3"}) == f"{start}/citroen/c3"
+    assert filtered_url(start, {"brand": "Ford"}) == f"{start}?maker=ford"
+    assert filtered_url(start, {"brand": "Ford", "model": "Ka"}) == f"{start}?maker=ford&model=ka"
+    assert filtered_url(start, {"brand": "Citroën", "model": "C3"}) == f"{start}?maker=citroen&model=c3"
     assert (
-        filtered_url(start, {"brand": "Volkswagen", "model": "T-Cross", "max_km": 1000})
-        == f"{start}/volkswagen/t-cross?max_km=1000"
+        filtered_url(start, {"brand": "Ford", "model": "Ka", "max_km": 1000})
+        == f"{start}?max_km=1000&maker=ford&model=ka"
     )
 
 
-def test_filtered_url_ignores_a_model_without_brand_and_keeps_a_specific_path():
+def test_filtered_url_ignores_a_model_without_brand_and_keeps_user_params():
     from cars_extractors.kavak import filtered_url
 
     start = "https://www.kavak.com/ar/usados"
     assert filtered_url(start, {"model": "Ka"}) == start
-    assert filtered_url(f"{start}/ford", {"brand": "Fiat"}) == f"{start}/ford"
-    assert filtered_url(f"{start}/ford/ka", {"brand": "Ford", "model": "Ka"}) == f"{start}/ford/ka"
+    assert filtered_url(f"{start}?maker=ford", {"brand": "Fiat"}) == f"{start}?maker=ford"
 
 
 def test_site_identity():
@@ -168,3 +167,44 @@ def test_site_identity():
     assert kavak.SITE_ID == "kavak"
     assert kavak.START_URL == "https://www.kavak.com/ar/usados"
     assert get_adapter(kavak.START_URL) is kavak
+
+
+def test_card_links_carry_the_car_id(list_html):
+    cards = parse_listing_cards(list_html, "https://www.kavak.com/ar/usados")
+    assert [c["link"].rsplit("?id=", 1)[1] for c in cards] == ["562001", "561376", "560976"]
+
+
+def test_cards_sharing_a_slug_stay_distinct_by_id():
+    html = (
+        '<a href="https://www.kavak.com/ar/venta/ford-ka-se-2018" data-testid="card-product-1"><h3>Ford Ka</h3></a>'
+        '<a href="https://www.kavak.com/ar/venta/ford-ka-se-2018" data-testid="card-product-2"><h3>Ford Ka</h3></a>'
+        '<a href="https://www.kavak.com/ar/venta/ford-ka-se-2018" data-testid="card-product-2"><h3>Ford Ka</h3></a>'
+    )
+    links = [c["link"] for c in parse_listing_cards(html, "https://www.kavak.com/ar/usados")]
+    assert links == [
+        "https://www.kavak.com/ar/venta/ford-ka-se-2018?id=1",
+        "https://www.kavak.com/ar/venta/ford-ka-se-2018?id=2",
+    ]
+
+
+def test_detail_link_without_id_stays_canonical(detail_html):
+    url = "https://www.kavak.com/ar/venta/ford-ka-15_se-hatchback-2017"
+    assert parse_listing_details(detail_html, url)["link"].endswith("ford-ka-15_s-hatchback-2018")
+
+
+def test_reserved_cards_are_left_out():
+    html = (
+        '<a href="https://www.kavak.com/ar/venta/ford-ka-a-2019" data-testid="card-product-1">'
+        "<div>Reservado</div><h3>Ford • Ka</h3></a>"
+        '<a href="https://www.kavak.com/ar/venta/ford-ka-b-2019" data-testid="card-product-2">'
+        "<h3>Ford • Ka</h3></a>"
+    )
+    cards = parse_listing_cards(html, "https://www.kavak.com/ar/usados")
+    assert [c["link"] for c in cards] == ["https://www.kavak.com/ar/venta/ford-ka-b-2019?id=2"]
+
+
+def test_reserved_detail_page_is_rejected(detail_html):
+    reserved = detail_html.replace("<body>", "<body><div>Este auto está reservado pero podría volver</div>", 1)
+    assert "Este auto está reservado" in reserved
+    with pytest.raises(ValueError, match="reserved"):
+        parse_listing_details(reserved, SLUG_URL)
