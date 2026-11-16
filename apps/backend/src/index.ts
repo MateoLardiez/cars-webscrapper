@@ -1,6 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import { searchRouter } from "./routers/searchRouter.js";
+import { catalogRouter } from "./routers/catalogRouter.js";
 
 dotenv.config();
 
@@ -14,6 +15,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/searches", searchRouter);
+app.use("/catalog", catalogRouter);
 
 app.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`);

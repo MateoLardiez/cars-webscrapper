@@ -1,0 +1,224 @@
+{
+  "brands": [
+    {
+      "name": "Ford",
+      "aliases": [],
+      "models": [
+        {
+          "name": "Ka",
+          "aliases": []
+        },
+        {
+          "name": "Focus",
+          "aliases": []
+        },
+        {
+          "name": "EcoSport",
+          "aliases": []
+        },
+        {
+          "name": "Fiesta",
+          "aliases": []
+        },
+        {
+          "name": "Ranger",
+          "aliases": []
+        },
+        {
+          "name": "Territory",
+          "aliases": []
+        },
+        {
+          "name": "Mondeo",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "name": "Volkswagen",
+      "aliases": [
+        "vw"
+      ],
+      "models": [
+        {
+          "name": "Gol",
+          "aliases": []
+        },
+        {
+          "name": "Fox",
+          "aliases": []
+        },
+        {
+          "name": "Taos",
+          "aliases": []
+        },
+        {
+          "name": "T-Cross",
+          "aliases": []
+        },
+        {
+          "name": "Polo",
+          "aliases": []
+        },
+        {
+          "name": "Vento",
+          "aliases": []
+        },
+        {
+          "name": "Amarok",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "name": "Chevrolet",
+      "aliases": [
+        "chevy"
+      ],
+      "models": [
+        {
+          "name": "Onix",
+          "aliases": []
+        },
+        {
+          "name": "Cruze",
+          "aliases": []
+        },
+        {
+          "name": "Tracker",
+          "aliases": []
+        },
+        {
+          "name": "S10",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "name": "Toyota",
+      "aliases": [],
+      "models": [
+        {
+          "name": "Corolla",
+          "aliases": []
+        },
+        {
+          "name": "Etios",
+          "aliases": []
+        },
+        {
+          "name": "Hilux",
+          "aliases": []
+        },
+        {
+          "name": "Yaris",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "name": "Fiat",
+      "aliases": [],
+      "models": [
+        {
+          "name": "Cronos",
+          "aliases": []
+        },
+        {
+          "name": "Argo",
+          "aliases": []
+        },
+        {
+          "name": "Toro",
+          "aliases": []
+        },
+        {
+          "name": "Palio",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "name": "Renault",
+      "aliases": [],
+      "models": [
+        {
+          "name": "Sandero",
+          "aliases": []
+        },
+        {
+          "name": "Duster",
+          "aliases": []
+        },
+        {
+          "name": "Kwid",
+          "aliases": []
+        },
+        {
+          "name": "Logan",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "name": "Peugeot",
+      "aliases": [],
+      "models": [
+        {
+          "name": "208",
+          "aliases": []
+        },
+        {
+          "name": "2008",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "name": "Citroën",
+      "aliases": [
+        "citroen"
+      ],
+      "models": [
+        {
+          "name": "C3",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "name": "Nissan",
+      "aliases": [],
+      "models": [
+        {
+          "name": "Versa",
+          "aliases": []
+        },
+        {
+          "name": "Kicks",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "name": "Honda",
+      "aliases": [],
+      "models": [
+        {
+          "name": "HR-V",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "name": "Jeep",
+      "aliases": [],
+      "models": [
+        {
+          "name": "Renegade",
+          "aliases": []
+        }
+      ]
+    }
+  ]
+}

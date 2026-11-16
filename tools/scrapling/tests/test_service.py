@@ -90,3 +90,15 @@ def test_cli_list_with_filters(monkeypatch):
     cars_cli.run(["list", "https://a.com", '{"max_km": 1}'])
     cars_cli.run(["list", "https://a.com"])
     assert calls == [("https://a.com", {"max_km": 1}), ("https://a.com", None)]
+
+
+def test_sites_lists_every_adapter_with_its_start_url():
+    from cars_extractors.service import list_sites
+
+    assert list_sites() == {
+        "sites": [{"id": "kavak", "start_url": "https://www.kavak.com/ar/usados", "currency": "ARS"}]
+    }
+
+
+def test_cli_sites_command():
+    assert cars_cli.run(["sites"])["sites"][0]["id"] == "kavak"

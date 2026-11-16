@@ -21,6 +21,8 @@ describe("createExtractor", () => {
       min_price: null,
       max_price: null,
       transmission: "manual",
+      brand: null,
+      model: null,
     });
     await extractor.details(["https://a.com/1", "https://a.com/2"]);
     expect(calls).toEqual([
@@ -29,7 +31,7 @@ describe("createExtractor", () => {
       [
         "list",
         "https://a.com",
-        '{"min_km":null,"max_km":100000,"min_price":null,"max_price":null,"transmission":"manual"}',
+        '{"min_km":null,"max_km":100000,"min_price":null,"max_price":null,"transmission":"manual","brand":null,"model":null}',
       ],
       ["details", "https://a.com/1", "https://a.com/2"],
     ]);
@@ -42,6 +44,8 @@ describe("createExtractor", () => {
       listings: [
         {
           name: "Ford Ka",
+          brand: "Ford",
+          model: "Ka",
           link: "https://www.kavak.com/ar/venta/1",
           year: 2018,
           km: 75368,
@@ -63,6 +67,13 @@ describe("createExtractor", () => {
     };
     const { extractor } = cliReturning(result);
     expect(await extractor.details(["https://a.com/1"])).toEqual(result);
+  });
+
+  it("lists the sites a search runs on", async () => {
+    const sites = { sites: [{ id: "kavak", start_url: "https://www.kavak.com/ar/usados", currency: "ARS" }] };
+    const { extractor, calls } = cliReturning(sites);
+    expect(await extractor.sites()).toEqual(sites);
+    expect(calls).toEqual([["sites"]]);
   });
 
   it("rejects output with an unexpected shape", async () => {

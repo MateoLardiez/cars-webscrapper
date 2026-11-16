@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { History } from "lucide-react";
 import { useSearchHistory } from "../hooks/useSearchHistory.js";
+import { sourceLabel } from "@/lib/format";
 import StatusBadge from "../components/StatusBadge.js";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -66,7 +67,7 @@ export default function HistoryPage() {
                       {s.query}
                     </Link>
                     <span className="block text-xs text-muted-foreground">
-                      {hostname(s.sourceUrl)}
+                      {sourceLabel(s.sourceUrl)}
                     </span>
                   </TableCell>
                   <TableCell className="hidden text-muted-foreground sm:table-cell">
@@ -84,12 +85,4 @@ export default function HistoryPage() {
       )}
     </div>
   );
-}
-
-function hostname(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return "—";
-  }
 }

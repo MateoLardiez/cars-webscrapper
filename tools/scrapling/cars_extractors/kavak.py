@@ -11,10 +11,13 @@ from urllib.parse import parse_qs, urlencode, urljoin, urlparse, urlunparse
 
 from scrapling.parser import Selector
 
+from .catalog import canonical_brand, canonical_model, slugify, split_brand_model
 from .numbers import parse_es_ar_number
 
+SITE_ID = "kavak"
 HOSTNAME = "www.kavak.com"
 PATH_PREFIX = "/ar"
+START_URL = f"https://{HOSTNAME}{PATH_PREFIX}/usados"  # where a search over the whole site starts
 CARD_CURRENCY = "ARS"  # result cards show the price without currency; Kavak AR lists in pesos
 
 
@@ -38,6 +41,14 @@ def _to_int(value: Any) -> int | None:
         return None
 
 
+def _brand(car: dict[str, Any]) -> str | None:
+    """The page has no brand field: it is the first keyword ("Ford,Ka,2018,...")."""
+    keywords = str(car.get("keywords") or "").split(",")
+    if keywords[0].strip():
+        return canonical_brand(keywords[0])
+    return split_brand_model(car.get("name") or "")[0]
+
+
 def parse_listing_details(html: str, url: str) -> dict[str, Any]:
     """Fields of one listing, from the page content only. Missing fields are None."""
     car = _car_node(Selector(html))
@@ -55,9 +66,11 @@ def parse_listing_details(html: str, url: str) -> dict[str, Any]:
         car.get("vehicleConfiguration"),
         engine.get("name"),
     ]
+    brand = _brand(car)
     return {
         "name": car.get("name"),
-        "model": car.get("model"),
+        "brand": brand,
+        "model": canonical_model(brand, car.get("model")),
         "year": _to_int(car.get("vehicleModelDate")),
         "km": parse_es_ar_number(str(odometer["value"])) if "value" in odometer else None,
         "price_original": offers.get("price"),
@@ -90,8 +103,17 @@ _TRANSMISSION_VALUES = {"manual": "manual", "automatic": "automatico"}
 
 def filtered_url(url: str, filters: dict[str, Any]) -> str:
     """Add the search filters to a results URL so Kavak returns only matching
-    cards. Prices are in CARD_CURRENCY. A parameter already in the URL is kept."""
+    cards. Prices are in CARD_CURRENCY. A parameter already in the URL is kept.
+
+    Brand and model go in the path of the general results page:
+    /ar/usados/<brand>/<model>. A URL that already points to a brand is kept."""
     parsed = urlparse(url)
+    brand = filters.get("brand")
+    if brand and parsed.path.rstrip("/") == f"{PATH_PREFIX}/usados":
+        path = f"{PATH_PREFIX}/usados/{slugify(brand)}"
+        if filters.get("model"):
+            path += f"/{slugify(filters['model'])}"
+        parsed = parsed._replace(path=path)
     query = parse_qs(parsed.query)
     for name, param in _FILTER_PARAMS.items():
         value = filters.get(name)
@@ -120,9 +142,13 @@ def parse_listing_cards(html: str, base_url: str) -> list[dict[str, Any]]:
         price = anchor.css('[class*="amount_uki-amount__large__price"]')
         # Subtitle: "2019 • 75.368 km • 2.0 TITANIUM • Manual"
         fields = [f.strip() for f in (subtitle[0].get_all_text() if subtitle else "").split("•")]
+        name = title[0].get_all_text().replace(" • ", " ") if title else None
+        brand, model = split_brand_model(name or "")
         cards.append(
             {
-                "name": title[0].get_all_text().replace(" • ", " ") if title else None,
+                "name": name,
+                "brand": brand,
+                "model": model,
                 "link": link,
                 "year": _to_int(fields[0]) if fields else None,
                 "km": parse_es_ar_number(fields[1]) if len(fields) > 1 and "km" in fields[1] else None,

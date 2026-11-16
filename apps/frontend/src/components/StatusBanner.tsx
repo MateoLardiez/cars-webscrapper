@@ -16,7 +16,7 @@ export default function StatusBanner({ status, summary, failure }: Props) {
   const config = {
     running: {
       title: "En ejecución",
-      detail: "El agente está navegando la página…",
+      detail: "Buscando en todos los sitios…",
       Icon: LoaderCircle,
       tone: "text-primary",
       spin: true,

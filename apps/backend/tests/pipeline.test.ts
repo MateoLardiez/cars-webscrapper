@@ -25,12 +25,15 @@ const filters: SearchFilters = {
   transmission: "manual",
   includeColors: [],
   excludeColors: ["verde"],
-  unsupportedCriteria: null,
+  brand: null,
+  model: null,
 };
 
 function card(id: number, overrides: Partial<ListingCard> = {}): ListingCard {
   return {
     name: `Car ${id}`,
+    brand: "Ford",
+    model: "Ka",
     link: `${BASE}/${id}`,
     year: 2018,
     km: 50000,
@@ -44,7 +47,8 @@ function card(id: number, overrides: Partial<ListingCard> = {}): ListingCard {
 function listing(id: number, overrides: Partial<ListingDetails> = {}): ListingDetails {
   return {
     name: `Car ${id}`,
-    model: "Model",
+    brand: "Ford",
+    model: "Ka",
     year: 2018,
     km: 50000,
     price_original: 9_000_000,
@@ -69,6 +73,9 @@ function setup(site: FakeSite) {
   const saved: NewCar[] = [];
   const events: SseEvent[] = [];
   const extractor: Extractor = {
+    async sites() {
+      return { sites: [] };
+    },
     async site() {
       return site.info ?? { supported: true, currency: "ARS" };
     },
@@ -130,6 +137,8 @@ describe("runPipeline", () => {
       min_price: null,
       max_price: 10_000_000,
       transmission: "manual",
+      brand: null,
+      model: null,
     };
     expect(listCalls).toEqual([
       { url: "p1", filters: expected },
@@ -160,6 +169,29 @@ describe("runPipeline", () => {
     expect(detailCalls).toEqual([[`${BASE}/1`, `${BASE}/4`, `${BASE}/5`]]);
     expect(saved.map((car) => car.link)).toEqual([`${BASE}/1`, `${BASE}/5`]);
     expect(saved[0]).toMatchObject({ priceOriginal: 9_000_000, currencyOriginal: "ARS", priceUsd: 9000 });
+  });
+
+  it("opens only the cards of the wanted brand and model, and saves only matching listings", async () => {
+    const cards = [
+      card(1),
+      card(2, { model: "Focus" }), // another model: never opened
+      card(3, { brand: "Fiat", model: "Palio" }), // another brand: never opened
+      card(4, { brand: null, model: null }), // unknown on the card: opened
+    ];
+    const { deps, detailCalls, saved } = setup({
+      pages: { start: page(cards) },
+      listings: {
+        [`${BASE}/1`]: listing(1),
+        [`${BASE}/4`]: listing(4, { model: "Focus" }), // the details show it is not a Ka
+      },
+    });
+
+    const result = await runPipeline("start", { ...filters, brand: "Ford", model: "Ka" }, deps);
+
+    expect(result).toEqual({ kind: "done", saved: 1 });
+    expect(detailCalls).toEqual([[`${BASE}/1`, `${BASE}/4`]]);
+    expect(saved.map((car) => car.link)).toEqual([`${BASE}/1`]);
+    expect(saved[0]).toMatchObject({ model: "Ka" });
   });
 
   it("requests details in batches of 10", async () => {
@@ -254,6 +286,19 @@ describe("toSiteFilters", () => {
 
   it("leaves prices out when the site currency is unknown", async () => {
     const site = await toSiteFilters(filters, null, usdRate);
-    expect(site).toEqual({ min_km: null, max_km: 100000, min_price: null, max_price: null, transmission: "manual" });
+    expect(site).toEqual({
+      min_km: null,
+      max_km: 100000,
+      min_price: null,
+      max_price: null,
+      transmission: "manual",
+      brand: null,
+      model: null,
+    });
+  });
+
+  it("passes the canonical brand and model to the site", async () => {
+    const site = await toSiteFilters({ ...filters, brand: "Ford", model: "Ka" }, "ARS", usdRate);
+    expect(site).toMatchObject({ brand: "Ford", model: "Ka" });
   });
 });

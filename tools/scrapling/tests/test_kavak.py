@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pytest
@@ -116,3 +117,54 @@ def test_filtered_url_is_idempotent():
     filters = {"max_km": 100000, "transmission": "manual"}
     once = filtered_url("https://www.kavak.com/ar/usados", filters)
     assert filtered_url(once, filters) == once
+
+
+def test_cards_carry_the_canonical_brand_and_model(list_html):
+    cards = parse_listing_cards(list_html, "https://www.kavak.com/ar/usados/ford")
+    assert [(c["brand"], c["model"]) for c in cards] == [("Ford", "Focus"), ("Ford", "Focus"), ("Ford", "Mondeo")]
+
+
+def test_details_carry_the_canonical_brand_and_model(detail_html):
+    details = parse_listing_details(detail_html, SLUG_URL)
+    assert details["brand"] == "Ford"
+    assert details["model"] == "Ka"
+
+
+def test_details_normalize_a_model_variant(detail_html):
+    html = detail_html.replace('"model":"Ka"', '"model":"Ka Plus"')
+    assert parse_listing_details(html, SLUG_URL)["model"] == "Ka"
+
+
+def test_details_without_brand_keywords_take_it_from_the_name(detail_html):
+    html = re.sub(r'"keywords":"[^"]*"', '"keywords":""', detail_html)
+    assert parse_listing_details(html, SLUG_URL)["brand"] == "Ford"
+
+
+def test_filtered_url_puts_brand_and_model_in_the_path():
+    from cars_extractors.kavak import filtered_url
+
+    start = "https://www.kavak.com/ar/usados"
+    assert filtered_url(start, {"brand": "Ford"}) == f"{start}/ford"
+    assert filtered_url(start, {"brand": "Ford", "model": "Ka"}) == f"{start}/ford/ka"
+    assert filtered_url(start, {"brand": "Citroën", "model": "C3"}) == f"{start}/citroen/c3"
+    assert (
+        filtered_url(start, {"brand": "Volkswagen", "model": "T-Cross", "max_km": 1000})
+        == f"{start}/volkswagen/t-cross?max_km=1000"
+    )
+
+
+def test_filtered_url_ignores_a_model_without_brand_and_keeps_a_specific_path():
+    from cars_extractors.kavak import filtered_url
+
+    start = "https://www.kavak.com/ar/usados"
+    assert filtered_url(start, {"model": "Ka"}) == start
+    assert filtered_url(f"{start}/ford", {"brand": "Fiat"}) == f"{start}/ford"
+    assert filtered_url(f"{start}/ford/ka", {"brand": "Ford", "model": "Ka"}) == f"{start}/ford/ka"
+
+
+def test_site_identity():
+    from cars_extractors import kavak
+
+    assert kavak.SITE_ID == "kavak"
+    assert kavak.START_URL == "https://www.kavak.com/ar/usados"
+    assert get_adapter(kavak.START_URL) is kavak

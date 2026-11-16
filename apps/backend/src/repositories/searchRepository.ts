@@ -22,11 +22,17 @@ export const searchRepository = {
     return db.search.findUnique({ where: { id }, include: { cars: true } });
   },
 
-  async markDone(id: number, durationMs: number, usage: UsageSummary | null = null) {
+  // `failureReason` lists the sites that failed in a search that still gave results
+  async markDone(
+    id: number,
+    durationMs: number,
+    usage: UsageSummary | null = null,
+    failureReason: string | null = null
+  ) {
     const carsFound = await db.car.count({ where: { searchId: id } });
     return db.search.update({
       where: { id },
-      data: { status: "done", durationMs, carsFound, ...usage },
+      data: { status: "done", durationMs, carsFound, failureReason, ...usage },
     });
   },
 

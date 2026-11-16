@@ -8,13 +8,14 @@
         "build": "vite build",
         "preview": "vite preview --port 5173",
         "lint": "eslint \"src/**/*.{ts,tsx,js,jsx}\" --fix",
-        "test": "vitest"
+        "test": "vitest run"
     },
     "dependencies": {
         "@fontsource-variable/geist": "^5.3.0",
         "@fontsource-variable/geist-mono": "^5.3.0",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
+        "cmdk": "^1.1.1",
         "lucide-react": "^1.69.0",
         "radix-ui": "^1.8.1",
         "react": "^19.2.6",

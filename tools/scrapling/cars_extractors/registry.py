@@ -18,3 +18,11 @@ def get_adapter(url: str) -> ModuleType | None:
     prefix, module = entry
     path = parsed.path
     return module if path == prefix or path.startswith(prefix + "/") else None
+
+
+def list_sites() -> list[dict[str, str | None]]:
+    """Every site a search can run on, with the URL its search starts from."""
+    return [
+        {"id": module.SITE_ID, "start_url": module.START_URL, "currency": getattr(module, "CARD_CURRENCY", None)}
+        for _, module in _ADAPTERS.values()
+    ]

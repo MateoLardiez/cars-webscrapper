@@ -8,7 +8,7 @@ from typing import Any, Callable
 
 from scrapling.fetchers import Fetcher, StealthyFetcher
 
-from .registry import get_adapter
+from .registry import get_adapter, list_sites as registered_sites
 
 MAX_BATCH = 10
 UNSUPPORTED = {"supported": False, "error": "No adapter for this site."}
@@ -36,6 +36,11 @@ def site_info(url: str) -> dict[str, Any]:
     if adapter is None:
         return dict(UNSUPPORTED)
     return {"supported": True, "currency": getattr(adapter, "CARD_CURRENCY", None)}
+
+
+def list_sites() -> dict[str, Any]:
+    """The sites with an adapter and the URL each search starts from."""
+    return {"sites": registered_sites()}
 
 
 def list_listings(

@@ -39,7 +39,7 @@ const money = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 
 
 interface Props {
   cars: Car[];
-  /** true mientras el agente sigue buscando y todavía no llegó ningún auto */
+  /** true mientras la búsqueda sigue en curso y todavía no llegó ningún auto */
   loading?: boolean;
 }
 
@@ -77,7 +77,7 @@ export default function ResultsTable({ cars, loading = false }: Props) {
 
   return (
     <div className="rounded-lg border bg-card">
-      <Table className="min-w-[560px]">
+      <Table className="min-w-[640px]">
         <TableHeader>
           <TableRow>
             <TableHead>Auto</TableHead>
@@ -85,6 +85,7 @@ export default function ResultsTable({ cars, loading = false }: Props) {
             <SortHead label="Año" sortKey="year" sort={sort} onSort={toggleSort} />
             <SortHead label="Km" sortKey="km" sort={sort} onSort={toggleSort} />
             <TableHead>Transmisión</TableHead>
+            <TableHead>Sitio</TableHead>
             {showColor && <TableHead>Color</TableHead>}
           </TableRow>
         </TableHeader>
@@ -156,6 +157,7 @@ function CarRow({ car, showColor }: { car: Car; showColor: boolean }) {
       <NumCell value={car.year?.toString()} />
       <NumCell value={car.km?.toLocaleString("es-AR")} />
       <TableCell className="text-muted-foreground">{car.transmission ?? "—"}</TableCell>
+      <TableCell className="capitalize text-muted-foreground">{car.site ?? "—"}</TableCell>
       {showColor && <TableCell className="text-muted-foreground">{car.color ?? "—"}</TableCell>}
     </TableRow>
   );

@@ -72,6 +72,8 @@ export async function toSiteFilters(
     min_price: local(filters.minPriceUsd, Math.floor),
     max_price: local(filters.maxPriceUsd, Math.ceil),
     transmission: filters.transmission,
+    brand: filters.brand,
+    model: filters.model,
   };
 }
 

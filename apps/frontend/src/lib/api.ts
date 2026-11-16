@@ -1,4 +1,4 @@
-import type { Search, Car, SseEvent } from "@cars-webscrapper/shared";
+import type { Catalog, Search, SearchFilters, Car, SseEvent } from "@cars-webscrapper/shared";
 
 export async function listSearches(): Promise<Search[]> {
   const res = await fetch("/searches");
@@ -10,15 +10,26 @@ export async function getSearch(id: number): Promise<Search & { cars: Car[] }> {
   return res.json();
 }
 
+export async function getCatalog(): Promise<Catalog> {
+  const res = await fetch("/catalog");
+  if (!res.ok) throw new Error(`No se pudo cargar el catálogo (HTTP ${res.status})`);
+  return res.json();
+}
+
 export async function streamSearch(
-  query: string,
+  filters: SearchFilters,
   onEvent: (event: SseEvent) => void
 ): Promise<void> {
   const res = await fetch("/searches", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify(filters),
   });
+
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? `La búsqueda falló (HTTP ${res.status})`);
+  }
 
   if (!res.body) throw new Error("No response body");
 

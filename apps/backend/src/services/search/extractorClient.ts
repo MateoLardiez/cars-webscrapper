@@ -7,6 +7,8 @@ const execFileAsync = promisify(execFile);
 
 const CardSchema = z.object({
   name: z.string().nullable(),
+  brand: z.string().nullable(),
+  model: z.string().nullable(),
   link: z.string(),
   year: z.number().nullable(),
   km: z.number().nullable(),
@@ -17,6 +19,7 @@ const CardSchema = z.object({
 
 const ListingSchema = z.object({
   name: z.string().nullable(),
+  brand: z.string().nullable(),
   model: z.string().nullable(),
   year: z.number().nullable(),
   km: z.number().nullable(),
@@ -61,6 +64,16 @@ const SiteInfoSchema = z.union([
   z.object({ supported: z.literal(true), currency: z.string().nullable() }),
 ]);
 
+const SiteEntrySchema = z.object({
+  id: z.string(),
+  start_url: z.string(),
+  currency: z.string().nullable(),
+});
+
+const SiteListSchema = z.object({ sites: z.array(SiteEntrySchema) });
+
+export type SiteEntry = z.infer<typeof SiteEntrySchema>;
+export type SiteList = z.infer<typeof SiteListSchema>;
 export type ListingCard = z.infer<typeof CardSchema>;
 export type ListingDetails = z.infer<typeof ListingSchema>;
 export type ListResult = z.infer<typeof ListResultSchema>;
@@ -75,9 +88,14 @@ export interface SiteFilters {
   min_price: number | null;
   max_price: number | null;
   transmission: "manual" | "automatic" | null;
+  // Canonical names from the catalog. The adapter translates them to the site's own
+  brand: string | null;
+  model: string | null;
 }
 
 export interface Extractor {
+  /** The sites with an adapter and the URL each search starts from */
+  sites(): Promise<SiteList>;
   site(url: string): Promise<SiteInfo>;
   list(url: string, filters?: SiteFilters): Promise<ListResult>;
   details(urls: string[]): Promise<DetailsResult>;
@@ -98,6 +116,9 @@ const runCarsCli: RunCli = async (args) => {
 
 export function createExtractor(runCli: RunCli = runCarsCli): Extractor {
   return {
+    async sites() {
+      return SiteListSchema.parse(JSON.parse(await runCli(["sites"])));
+    },
     async site(url) {
       return SiteInfoSchema.parse(JSON.parse(await runCli(["site", url])));
     },

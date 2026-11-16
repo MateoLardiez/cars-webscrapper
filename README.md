@@ -27,7 +27,7 @@ Requirements: Node.js 20+, npm and [uv](https://docs.astral.sh/uv/) (for the Scr
    ANTHROPIC_API_KEY=your_anthropic_api_key_here
    ```
 
-   The frontend proxies `/searches` to `http://localhost:3001`, so keep `PORT=3001`.
+   The frontend proxies `/searches` and `/catalog` to `http://localhost:3001`, so keep `PORT=3001`.
 
 3. Set up the database (SQLite, stored in `apps/backend/data/dev.db`):
 
@@ -64,4 +64,12 @@ npm install
 
 If it still fails, delete `node_modules` and run `npm install` again.
 
-Note: the agent fetches pages through the Scrapling MCP server (`tools/scrapling`, pinned in `pyproject.toml` and `uv.lock`). If it is missing, the search fails with "Run: npm run setup:scrapling".
+### How a search works
+
+The search form sends structured filters (price in USD, km, year, transmission, brand, model, colors). The backend runs the code pipeline on every site that has an adapter (`tools/scrapling/cars_extractors/registry.py`), at most 3 sites at a time. A site that fails is reported in the UI and the others keep going. No search calls Claude, so tokens and cost are 0.
+
+Brands and models come from one catalog, `apps/shared/catalog.json`, used by the backend and by the Python adapters. Start small and add a brand or model only after checking it on each site.
+
+The pages are read through Scrapling (`tools/scrapling`, pinned in `pyproject.toml` and `uv.lock`). If it is missing, the search fails with "Run: npm run setup:scrapling".
+
+Tests: `npm --workspace @cars-webscrapper/backend test`, `npm --workspace @cars-webscrapper/frontend test` and `uv run pytest` in `tools/scrapling`.

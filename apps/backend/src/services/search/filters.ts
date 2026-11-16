@@ -1,24 +1,12 @@
-import { z } from "zod";
+import type { SearchFilters } from "@cars-webscrapper/shared";
+import { normalizeName } from "./catalog.js";
 
-// What Claude extracts from the user's request. Also used as the structured output schema.
-export const SearchFiltersSchema = z.object({
-  minPriceUsd: z.number().nullable(),
-  maxPriceUsd: z.number().nullable(),
-  minKm: z.number().nullable(),
-  maxKm: z.number().nullable(),
-  minYear: z.number().nullable(),
-  maxYear: z.number().nullable(),
-  transmission: z.enum(["manual", "automatic"]).nullable(),
-  includeColors: z.array(z.string()),
-  excludeColors: z.array(z.string()),
-  // Criteria the fields above cannot express. Non-null means the code pipeline cannot honor them.
-  unsupportedCriteria: z.string().nullable(),
-});
-
-export type SearchFilters = z.infer<typeof SearchFiltersSchema>;
+export type { SearchFilters };
 
 // The fields filters look at. `priceUsd` is null when the price or its currency is unknown.
 export interface ListingFacts {
+  brand: string | null;
+  model: string | null;
   year: number | null;
   km: number | null;
   priceUsd: number | null;
@@ -28,9 +16,7 @@ export interface ListingFacts {
 
 type Verdict = "pass" | "fail" | "unknown";
 
-function normalize(text: string): string {
-  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-}
+const normalize = normalizeName;
 
 function inRange(value: number | null, min: number | null, max: number | null): Verdict {
   if (min === null && max === null) return "pass";
@@ -38,6 +24,13 @@ function inRange(value: number | null, min: number | null, max: number | null): 
   if (min !== null && value < min) return "fail";
   if (max !== null && value > max) return "fail";
   return "pass";
+}
+
+// Brand and model arrive canonical from the adapters: compare the names
+function sameName(value: string | null, wanted: string | null): Verdict {
+  if (wanted === null) return "pass";
+  if (value === null) return "unknown";
+  return normalize(value) === normalize(wanted) ? "pass" : "fail";
 }
 
 function transmissionVerdict(value: string | null, wanted: SearchFilters["transmission"]): Verdict {
@@ -62,6 +55,8 @@ function colorVerdict(value: string | null, include: string[], exclude: string[]
 
 function verdicts(facts: ListingFacts, filters: SearchFilters): Verdict[] {
   return [
+    sameName(facts.brand, filters.brand),
+    sameName(facts.model, filters.model),
     inRange(facts.priceUsd, filters.minPriceUsd, filters.maxPriceUsd),
     inRange(facts.km, filters.minKm, filters.maxKm),
     inRange(facts.year, filters.minYear, filters.maxYear),

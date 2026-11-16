@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import type { Car, SseEvent, UsageSummary } from "@cars-webscrapper/shared";
+import type { Car, SearchFilters, SiteStatus, SseEvent, UsageSummary } from "@cars-webscrapper/shared";
 import { streamSearch } from "../lib/api.js";
 
 type Status = "idle" | "running" | "done" | "failed";
@@ -14,17 +14,28 @@ export function useSearchStream() {
     usage: UsageSummary | null;
   } | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  // Last status of each site, in the order the sites first reported
+  const [sites, setSites] = useState<SiteStatus[]>([]);
 
-  const run = useCallback(async (query: string) => {
+  const run = useCallback(async (filters: SearchFilters) => {
     setStatus("running");
     setEvents([]);
     setCars([]);
     setSummary(null);
     setFailure(null);
+    setSites([]);
 
     try {
-      await streamSearch(query, (event) => {
+      await streamSearch(filters, (event) => {
         setEvents((prev) => [...prev, event]);
+        if (event.type === "site_status") {
+          const { type: _type, ...status } = event;
+          setSites((prev) =>
+            prev.some((s) => s.site === status.site)
+              ? prev.map((s) => (s.site === status.site ? status : s))
+              : [...prev, status]
+          );
+        }
         if (event.type === "car_saved") {
           setCars((prev) => [...prev, event.car]);
         }
@@ -47,5 +58,5 @@ export function useSearchStream() {
     }
   }, []);
 
-  return { status, events, cars, summary, failure, run };
+  return { status, events, cars, summary, failure, sites, run };
 }

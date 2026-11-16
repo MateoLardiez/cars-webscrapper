@@ -22,7 +22,7 @@ export default function ProgressFeed({ events }: { events: SseEvent[] }) {
   return (
     <div className="overflow-hidden rounded-lg border bg-card">
       <div className="flex items-center justify-between px-4 py-2.5">
-        <span className="text-xs text-muted-foreground">Registro del agente</span>
+        <span className="text-xs text-muted-foreground">Registro de la búsqueda</span>
         <div className="flex items-center gap-2">
           <Checkbox
             id="show-thoughts"
@@ -57,6 +57,7 @@ const TAGS: Record<SseEvent["type"], { text: string; tone: string }> = {
   agent_thinking: { text: "razonamiento", tone: "text-muted-foreground" },
   tool_call: { text: "herramienta", tone: "text-primary" },
   car_saved: { text: "guardado", tone: "text-success" },
+  site_status: { text: "sitio", tone: "text-primary" },
   extraction_failed: { text: "error", tone: "text-destructive" },
   done: { text: "listo", tone: "text-success" },
 };
@@ -78,6 +79,12 @@ function getText(e: SseEvent): string {
       return `${e.name} · ${e.summary}`;
     case "car_saved":
       return e.car.name;
+    case "site_status":
+      return e.status === "running"
+        ? `${e.site} · buscando`
+        : e.status === "done"
+          ? `${e.site} · ${e.carsFound} autos`
+          : `${e.site} · falló: ${e.reason ?? "error desconocido"}`;
     case "extraction_failed":
       return e.reason;
     case "done":

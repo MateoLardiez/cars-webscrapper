@@ -17,3 +17,13 @@ export function totalTokens(
 export function formatUsage(u: UsageSummary | null): string {
   return u ? `${formatCost(u.costUsd)} · ${formatTokens(totalTokens(u))} tokens` : "";
 }
+
+// Searches made with the form have no source URL: they run on every site
+export function sourceLabel(url: string): string {
+  if (!url) return "Todos los sitios";
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "—";
+  }
+}

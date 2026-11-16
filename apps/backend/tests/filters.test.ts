@@ -11,7 +11,8 @@ const noFilters: SearchFilters = {
   transmission: null,
   includeColors: [],
   excludeColors: [],
-  unsupportedCriteria: null,
+  brand: null,
+  model: null,
 };
 
 // The example request: under USD 10.000, under 100.000 km, manual, not yellow or green
@@ -24,6 +25,8 @@ const exampleFilters: SearchFilters = {
 };
 
 const goodCar: ListingFacts = {
+  brand: "Ford",
+  model: "Ka",
   year: 2018,
   km: 75000,
   priceUsd: 9500,
@@ -37,7 +40,7 @@ describe("matchesFilters", () => {
   });
 
   it("accepts anything when there are no filters", () => {
-    const unknown = { year: null, km: null, priceUsd: null, transmission: null, color: null };
+    const unknown = { brand: null, model: null, year: null, km: null, priceUsd: null, transmission: null, color: null };
     expect(matchesFilters(unknown, noFilters)).toBe(true);
   });
 
@@ -83,9 +86,45 @@ describe("matchesFilters", () => {
   });
 });
 
+describe("brand and model", () => {
+  const fordKa = { ...noFilters, brand: "Ford", model: "Ka" };
+
+  it("accepts the wanted brand and model, ignoring case and accents", () => {
+    expect(matchesFilters(goodCar, fordKa)).toBe(true);
+    expect(matchesFilters({ ...goodCar, brand: "FORD", model: "ka" }, fordKa)).toBe(true);
+    expect(matchesFilters({ ...goodCar, brand: "Citroen" }, { ...noFilters, brand: "Citroën" })).toBe(true);
+  });
+
+  it("rejects another brand or another model", () => {
+    expect(matchesFilters({ ...goodCar, brand: "Fiat" }, fordKa)).toBe(false);
+    expect(matchesFilters({ ...goodCar, model: "Focus" }, fordKa)).toBe(false);
+  });
+
+  it("filters by brand alone", () => {
+    const fordOnly = { ...noFilters, brand: "Ford" };
+    expect(matchesFilters({ ...goodCar, model: "Focus" }, fordOnly)).toBe(true);
+    expect(matchesFilters({ ...goodCar, brand: "Fiat" }, fordOnly)).toBe(false);
+  });
+
+  it("rejects a listing whose brand or model is unknown", () => {
+    expect(matchesFilters({ ...goodCar, brand: null }, fordKa)).toBe(false);
+    expect(matchesFilters({ ...goodCar, model: null }, fordKa)).toBe(false);
+  });
+
+  it("does not look at the model when none is wanted", () => {
+    expect(matchesFilters({ ...goodCar, model: null }, { ...noFilters, brand: "Ford" })).toBe(true);
+  });
+
+  it("keeps a card with unknown brand or model, but drops a card that fails", () => {
+    expect(isCandidate({ ...goodCar, brand: null, model: null }, fordKa)).toBe(true);
+    expect(isCandidate({ ...goodCar, brand: "Fiat" }, fordKa)).toBe(false);
+    expect(isCandidate({ ...goodCar, model: "Focus" }, fordKa)).toBe(false);
+  });
+});
+
 describe("isCandidate", () => {
   it("keeps a card with missing fields, to check them in the details", () => {
-    const card = { year: null, km: null, priceUsd: null, transmission: null, color: null };
+    const card = { brand: null, model: null, year: null, km: null, priceUsd: null, transmission: null, color: null };
     expect(isCandidate(card, exampleFilters)).toBe(true);
   });
 

@@ -13,6 +13,7 @@ export interface CreateCarInput {
   color?: string | null;
   characteristics?: string | null;
   link: string;
+  site?: string | null;
 }
 
 export const carRepository = {

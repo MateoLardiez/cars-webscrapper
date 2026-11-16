@@ -1,5 +1,6 @@
 """Command line entry point used by the backend. Prints one JSON object to stdout.
 
+    python cars_cli.py sites
     python cars_cli.py site <url>
     python cars_cli.py list <url> [<filters json>]
     python cars_cli.py details <url> [<url> ...]
@@ -10,12 +11,14 @@ import json
 import sys
 from typing import Any
 
-from cars_extractors.service import get_listing_details, list_listings, site_info
+from cars_extractors.service import get_listing_details, list_listings, list_sites, site_info
 
-USAGE = "Usage: cars_cli.py site <url> | list <url> [<filters json>] | details <url>..."
+USAGE = "Usage: cars_cli.py sites | site <url> | list <url> [<filters json>] | details <url>..."
 
 
 def run(argv: list[str]) -> dict[str, Any]:
+    if argv == ["sites"]:
+        return list_sites()
     if len(argv) == 2 and argv[0] == "site":
         return site_info(argv[1])
     if len(argv) in (2, 3) and argv[0] == "list":

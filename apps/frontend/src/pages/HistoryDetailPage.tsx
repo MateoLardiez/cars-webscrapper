@@ -1,7 +1,7 @@
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, SearchX } from "lucide-react";
 import { useSearchDetail } from "../hooks/useSearchDetail.js";
-import { formatCost, formatTokens, totalTokens } from "@/lib/format";
+import { formatCost, formatTokens, sourceLabel, totalTokens } from "@/lib/format";
 import ResultsTable from "../components/ResultsTable.js";
 import StatusBadge from "../components/StatusBadge.js";
 import { Button } from "@/components/ui/button";
@@ -55,7 +55,7 @@ export default function HistoryDetailPage() {
         </h1>
         <dl className="mt-6 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
           <Meta label="Cuándo">{new Date(data.createdAt).toLocaleString("es-AR")}</Meta>
-          <Meta label="Fuente">{hostname(data.sourceUrl)}</Meta>
+          <Meta label="Fuente">{sourceLabel(data.sourceUrl)}</Meta>
           <Meta label="Estado">
             <StatusBadge status={data.status} />
           </Meta>
@@ -87,6 +87,12 @@ export default function HistoryDetailPage() {
         </dl>
       </section>
 
+      {data.failureReason && (
+        <p role="status" className="text-sm text-destructive">
+          {data.status === "failed" ? "Falló" : "Sitios con error"}: {data.failureReason}
+        </p>
+      )}
+
       <section>
         <h2 className="text-sm font-semibold">Resultados</h2>
         <div className="mt-3">
@@ -104,12 +110,4 @@ function Meta({ label, children }: { label: string; children: React.ReactNode })
       <dd className="mt-1 text-sm">{children}</dd>
     </div>
   );
-}
-
-function hostname(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return "—";
-  }
 }
