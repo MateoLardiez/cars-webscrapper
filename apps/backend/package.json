@@ -11,10 +11,11 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "lint": "eslint \"src/**/*.{ts,tsx}\" --fix",
-    "test": "vitest"
+    "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.126",
+    "@anthropic-ai/sdk": "^1.9.0",
     "@cars-webscrapper/shared": "^0.0.0",
     "@prisma/client": "^5.22.0",
     "dotenv": "^17.4.2",
@@ -26,6 +27,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^25.6.0",
     "tsx": "^4.23.15",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^5.1.0"
   }
 }

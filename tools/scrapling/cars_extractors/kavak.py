@@ -15,6 +15,7 @@ from .numbers import parse_es_ar_number
 
 HOSTNAME = "www.kavak.com"
 PATH_PREFIX = "/ar"
+CARD_CURRENCY = "ARS"  # result cards show the price without currency; Kavak AR lists in pesos
 
 
 def _car_node(page: Selector) -> dict[str, Any] | None:
