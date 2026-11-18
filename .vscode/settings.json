@@ -1,0 +1,4 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/tools/scrapling/.venv/bin/python",
+  "python.analysis.extraPaths": ["${workspaceFolder}/tools/scrapling"]
+}
