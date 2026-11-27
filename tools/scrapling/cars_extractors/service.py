@@ -30,6 +30,14 @@ def _fetch_html(url: str) -> str:
 FetchHtml = Callable[[str], str]
 
 
+def _fetcher(adapter: Any, fetch_html: FetchHtml | None) -> FetchHtml:
+    """The injected fetch (tests), else the adapter's own (a site read through an
+    API, not a GET of the page), else a plain page fetch."""
+    if fetch_html is not None:
+        return fetch_html
+    return getattr(adapter, "fetch", _fetch_html)
+
+
 def site_info(url: str) -> dict[str, Any]:
     """Whether the site has an adapter, and the currency its result cards use."""
     adapter = get_adapter(url)
@@ -46,7 +54,7 @@ def list_sites() -> dict[str, Any]:
 def list_listings(
     url: str,
     filters: dict[str, Any] | None = None,
-    fetch_html: FetchHtml = _fetch_html,
+    fetch_html: FetchHtml | None = None,
 ) -> dict[str, Any]:
     """Cards of a results page (name, link, year, km, transmission, price, currency)
     and the next page URL.
@@ -62,7 +70,7 @@ def list_listings(
     if filters and hasattr(adapter, "filtered_url"):
         target = adapter.filtered_url(target, filters)
     try:
-        html = fetch_html(target)
+        html = _fetcher(adapter, fetch_html)(target)
         listings = adapter.parse_listing_cards(html, target)
         if not listings:
             raise ValueError("No listing cards found. This page is not a results page.")
@@ -77,7 +85,7 @@ def list_listings(
         return {"supported": True, "error": f"{type(exc).__name__}: {exc}"}
 
 
-def get_listing_details(urls: list[str], fetch_html: FetchHtml = _fetch_html) -> dict[str, Any]:
+def get_listing_details(urls: list[str], fetch_html: FetchHtml | None = None) -> dict[str, Any]:
     """Full fields of each listing, read from its own page. One failing URL does
     not fail the batch: it gets an `error` instead of a `listing`."""
     if not urls:
@@ -87,10 +95,11 @@ def get_listing_details(urls: list[str], fetch_html: FetchHtml = _fetch_html) ->
     adapter = get_adapter(urls[0])
     if adapter is None:
         return dict(UNSUPPORTED)
+    fetch = _fetcher(adapter, fetch_html)
 
     def one(url: str) -> dict[str, Any]:
         try:
-            return {"url": url, "listing": adapter.parse_listing_details(fetch_html(url), url)}
+            return {"url": url, "listing": adapter.parse_listing_details(fetch(url), url)}
         except Exception as exc:
             return {"url": url, "error": f"{type(exc).__name__}: {exc}"}
 

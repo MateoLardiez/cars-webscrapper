@@ -14,7 +14,9 @@
         },
         {
           "name": "EcoSport",
-          "aliases": []
+          "aliases": [
+            "Eco Sport"
+          ]
         },
         {
           "name": "Fiesta",
@@ -90,7 +92,9 @@
         },
         {
           "name": "S10",
-          "aliases": []
+          "aliases": [
+            "S-10"
+          ]
         }
       ]
     },

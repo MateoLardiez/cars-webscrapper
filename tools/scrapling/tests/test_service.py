@@ -96,7 +96,10 @@ def test_sites_lists_every_adapter_with_its_start_url():
     from cars_extractors.service import list_sites
 
     assert list_sites() == {
-        "sites": [{"id": "kavak", "start_url": "https://www.kavak.com/ar/usados", "currency": "ARS"}]
+        "sites": [
+            {"id": "kavak", "start_url": "https://www.kavak.com/ar/usados", "currency": "ARS"},
+            {"id": "carone", "start_url": "https://carone.com.ar/comprar?carOptions=usados", "currency": "ARS"},
+        ]
     }
 
 
