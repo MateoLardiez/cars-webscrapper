@@ -39,3 +39,4 @@ Product management (tasks, projects, labels) lives in Kaneo, reachable through t
 - Run: `npx tsx tools/factory/dispatcher.ts` (once), `--interval <seconds>` (loop), `--dry-run` (print only).
 - The Kaneo REST API key lives in `~/.config/factory/kaneo.env` (`KANEO_API_KEY`), outside the repo.
 - If a run ends without the task in `in-review` with a PR, the dispatcher comments "Necesita humano", moves it to `to-do` and removes `agent-task`. Re-add the label to retry.
+- `tools/factory/ui` (npm workspace `@cars-webscrapper/factory-ui`, `npm run factory:ui`, port 5180) is a separate React + shadcn app that lists the running agents. It has no backend: a Vite middleware serves `/api/agents` from `tools/factory/runs/*.json`, which the dispatcher writes per running agent. The `RunningAgent` type in `ui/src/lib/runningAgent.ts` is shared by both sides.

@@ -5,14 +5,16 @@
   "workspaces": [
     "apps/backend",
     "apps/frontend",
-    "apps/shared"
+    "apps/shared",
+    "tools/factory/ui"
   ],
   "scripts": {
     "dev": "concurrently \"npm --workspace @cars-webscrapper/backend run dev\" \"npm --workspace @cars-webscrapper/frontend run dev\"",
     "setup:scrapling": "bash tools/scrapling/setup.sh",
     "build": "npm --workspaces --if-present run build",
     "lint": "npm --workspaces --if-present run lint",
-    "test": "npm --workspaces --if-present run test"
+    "test": "npm --workspaces --if-present run test",
+    "factory:ui": "npm --workspace @cars-webscrapper/factory-ui run dev"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"

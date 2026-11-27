@@ -134,6 +134,16 @@ The agent can take a long time (the dispatcher kills it after 90 minutes). To ru
 
 Optional environment variables: `KANEO_URL` (default `http://localhost:5173`) and `KANEO_PROJECT_ID` (default: the Cars Webscrapper project).
 
+### Watching the running agents
+
+A small separate app (`tools/factory/ui`, React + shadcn/ui) shows the agents that are running right now and the task each one took. It is independent from the cars app: start it on its own, in another terminal, from the repo root:
+
+```bash
+npm run factory:ui   # http://localhost:5180/agents
+```
+
+It refreshes every 3 seconds. The dispatcher writes one file per running agent in `tools/factory/runs/` (gitignored) and removes it when the agent ends; the app reads that folder and hides entries whose process is gone (for example, after the dispatcher was killed). Tests: `npm --workspace @cars-webscrapper/factory-ui test`.
+
 ### After a run
 
 - **Success:** the task is In Review, with the PR linked in Kaneo and a result comment. Review and merge the PR yourself.

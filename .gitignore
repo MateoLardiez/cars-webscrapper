@@ -11,3 +11,7 @@ apps/backend/.playwright-mcp
 # AI
 .playwright-mcp
 .archify
+
+# Software factory: one file per running agent
+tools/factory/runs/
+tools/factory/ui/dist/

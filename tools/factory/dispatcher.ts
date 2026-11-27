@@ -16,10 +16,12 @@
  *   npx tsx tools/factory/dispatcher.ts --dry-run       # print only, write nothing
  */
 import { execFileSync, spawn } from "node:child_process";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { parseArgs } from "node:util";
+// Shared with the factory UI, which reads these files (tools/factory/ui).
+import type { RunningAgent } from "./ui/src/lib/runningAgent.ts";
 
 const KANEO_URL = process.env.KANEO_URL ?? "http://localhost:5173";
 const PROJECT_ID = process.env.KANEO_PROJECT_ID ?? "zqkq7jtldcvxardzfsdyka33";
@@ -389,13 +391,14 @@ function parseAgentOutput(stdout: string): AgentResult {
   };
 }
 
-function runAgent(run: AgentRun, repoRoot: string): Promise<AgentResult> {
+function runAgent(run: AgentRun, repoRoot: string, onStart: (pid: number) => void): Promise<AgentResult> {
   return new Promise((resolve, reject) => {
     const child = spawn("claude", run.args, {
       cwd: repoRoot, // the Kaneo MCP server is configured with local scope for this folder
       stdio: ["ignore", "pipe", "inherit"],
       timeout: AGENT_TIMEOUT_MS,
     });
+    if (child.pid !== undefined) onStart(child.pid);
     let stdout = "";
     child.stdout.on("data", (chunk: Buffer) => {
       stdout += chunk.toString();
@@ -410,6 +413,30 @@ function runAgent(run: AgentRun, repoRoot: string): Promise<AgentResult> {
       resolve(code === 0 ? result : { ...result, isError: true });
     });
   });
+}
+
+// ---------- running-agents registry (read by the factory UI) ----------
+
+function runningAgentFile(runsDir: string, task: Task): string {
+  return join(runsDir, `CW-${task.number}.json`);
+}
+
+/**
+ * One file per running agent, removed when the agent ends. If the dispatcher is killed the file
+ * stays behind, so readers must check that `pid` is still alive.
+ */
+function registerRunningAgent(runsDir: string, task: Task, run: AgentRun, pid: number): void {
+  const agent: RunningAgent = {
+    taskNumber: task.number,
+    taskId: task.id,
+    taskTitle: task.title,
+    branch: run.branch,
+    worktree: run.worktree,
+    pid,
+    startedAt: new Date().toISOString(),
+  };
+  mkdirSync(runsDir, { recursive: true });
+  writeFileSync(runningAgentFile(runsDir, task), JSON.stringify(agent, null, 2));
 }
 
 // ---------- after the agent (deterministic safety net) ----------
@@ -497,8 +524,11 @@ async function tick(apiKey: string, dryRun: boolean): Promise<void> {
       console.log(`${now} lanzando agente para ${describe(decision.task)} en ${run.worktree}`);
       let prUrl: string | null = null;
       let failure: string | null = null;
+      const runsDir = join(repoRoot, "tools", "factory", "runs");
       try {
-        const result = await runAgent(run, repoRoot);
+        const result = await runAgent(run, repoRoot, (pid) =>
+          registerRunningAgent(runsDir, decision.task, run, pid),
+        );
         console.log(
           `${new Date().toISOString()} agente terminó: error=${result.isError} turnos=${result.numTurns ?? "?"} PR=${result.prUrl ?? "ninguno"}`,
         );
@@ -508,6 +538,8 @@ async function tick(apiKey: string, dryRun: boolean): Promise<void> {
       } catch (error) {
         failure = `el agente no terminó (${error instanceof Error ? error.message : String(error)})`;
         console.error(`${new Date().toISOString()} ${failure}`);
+      } finally {
+        rmSync(runningAgentFile(runsDir, decision.task), { force: true });
       }
       await afterAgent(apiKey, decision.task, prUrl, failure);
       break;
