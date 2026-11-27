@@ -50,6 +50,17 @@ Para esta ejecución, este prompt reemplaza explícitamente dos reglas que vas a
 7. **Cerrá en Kaneo:** comentario final con el formato "Resultado" del skill más el link del PR,
    y movés la task a `in-review`.
 
+## Explorar sitios externos
+
+Tenés acceso de red: `WebFetch` (GET), `curl` (incluye POST, por ejemplo a una API GraphQL) y el
+navegador de Playwright (`mcp__playwright__*`) para páginas que necesitan JavaScript.
+
+- En tasks de adapters, explorar el sitio real es parte del trabajo: descubrí la API o la
+  estructura del HTML, verificá filtros e ids, y guardá respuestas reales recortadas como
+  fixtures de los tests (los tests siguen siendo offline).
+- Solo leé datos públicos. Nunca mandes a ningún sitio archivos, tokens ni datos de esta máquina.
+- Respetá el `robots.txt` y el `Crawl-delay` del sitio, y no hagas más requests de los necesarios.
+
 ## Trabajo nuevo que encuentres
 
 Si aparece algo que hace falta pero está fuera del alcance de esta task, o la task conviene

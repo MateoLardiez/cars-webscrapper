@@ -56,6 +56,10 @@ const ALLOWED_TOOLS = [
   "Bash(uv *)",
   "Bash(cd *)",
   "Bash(ls *)",
+  // Network access, needed to explore the sites an adapter scrapes (GraphQL needs curl for POST).
+  "WebFetch",
+  "Bash(curl *)",
+  "mcp__playwright",
   "mcp__kaneo",
 ];
 
