@@ -10,9 +10,9 @@
   "scripts": {
     "dev": "concurrently \"npm --workspace @cars-webscrapper/backend run dev\" \"npm --workspace @cars-webscrapper/frontend run dev\"",
     "setup:scrapling": "bash tools/scrapling/setup.sh",
-    "build": "npm --workspaces run build",
-    "lint": "npm --workspaces run lint",
-    "test": "npm --workspaces run test"
+    "build": "npm --workspaces --if-present run build",
+    "lint": "npm --workspaces --if-present run lint",
+    "test": "npm --workspaces --if-present run test"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"
