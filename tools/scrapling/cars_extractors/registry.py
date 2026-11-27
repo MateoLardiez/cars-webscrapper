@@ -3,10 +3,11 @@
 from types import ModuleType
 from urllib.parse import urlparse
 
-from . import kavak
+from . import carone, kavak
 
 _ADAPTERS: dict[str, tuple[str, ModuleType]] = {
     kavak.HOSTNAME: (kavak.PATH_PREFIX, kavak),
+    carone.HOSTNAME: (carone.PATH_PREFIX, carone),
 }
 
 

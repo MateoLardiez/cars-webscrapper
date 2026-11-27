@@ -96,9 +96,17 @@ def test_sites_lists_every_adapter_with_its_start_url():
     from cars_extractors.service import list_sites
 
     assert list_sites() == {
-        "sites": [{"id": "kavak", "start_url": "https://www.kavak.com/ar/usados", "currency": "ARS"}]
+        "sites": [
+            {"id": "kavak", "start_url": "https://www.kavak.com/ar/usados", "currency": "ARS"},
+            {"id": "carone", "start_url": "https://carone.com.ar/comprar?carOptions=usados", "currency": "ARS"},
+        ]
     }
 
 
 def test_cli_sites_command():
     assert cars_cli.run(["sites"])["sites"][0]["id"] == "kavak"
+
+
+def test_page_without_cards_is_still_an_error_for_an_adapter_without_the_hook():
+    result = list_listings(LIST_URL, fetch_html=fake_fetch({LIST_URL: "<html></html>"}))
+    assert result["error"].startswith("ValueError: No listing cards found")
