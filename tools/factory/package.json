@@ -1,0 +1,13 @@
+{
+  "name": "@cars-webscrapper/factory",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dispatch": "tsx dispatcher.ts",
+    "test": "vitest run --dir lib"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15",
+    "vitest": "^5.1.0"
+  }
+}

@@ -6,6 +6,7 @@
     "apps/backend",
     "apps/frontend",
     "apps/shared",
+    "tools/factory",
     "tools/factory/ui"
   ],
   "scripts": {

@@ -16,6 +16,14 @@ Para esta ejecución, este prompt reemplaza explícitamente dos reglas que vas a
 - Worktree: `{{WORKTREE}}`
 - Repo principal: `{{REPO}}` (no edites archivos acá: solo lo usás para crear el worktree)
 - Carpetas que podés modificar: {{SCOPE}}
+- PR existente: {{PR}}
+
+## Si ya hay un PR (retomar)
+
+Si "PR existente" no es `ninguno`, la task ya fue implementada y tu trabajo es cerrar la revisión:
+hacé los pasos 1 y 2, asegurate de tener el worktree al día (si no existe:
+`git -C {{REPO}} fetch origin` y `git -C {{REPO}} worktree add {{WORKTREE}} {{BRANCH}}`, después
+las instalaciones del paso 3; si existe: `git -C {{WORKTREE}} pull --ff-only`), y saltá al paso 7.
 
 ## Flujo
 
@@ -47,8 +55,20 @@ Para esta ejecución, este prompt reemplaza explícitamente dos reglas que vas a
    - `git push -u origin {{BRANCH}}`.
    - `gh pr create --base main --head {{BRANCH}}` con título y descripción en inglés (formato
      "Pull Request Description" del skill), terminando con `Kaneo: CW-{{TASK_NUMBER}}`.
-7. **Cerrá en Kaneo:** comentario final con el formato "Resultado" del skill más el link del PR,
-   y movés la task a `in-review`.
+7. **Cerrá la revisión de Crysk.** Crysk revisa el PR en GitHub Actions y comenta los hallazgos.
+   - Cargá el procedimiento con `npx -y crysk skills load crysk-loop` y seguilo desde `{{WORKTREE}}`.
+     Usa `npx -y crysk status --pr <n> --json --wait` para esperar cada revisión.
+   - Respondé **todos** los hallazgos, también los `WARNING` y `SUGGESTION`: corregí los reales y
+     descartá con argumento los que no lo son, como indica el procedimiento.
+   - En cada respuesta `applied`, el archivo de `--body-file` empieza explicando **la solución**:
+     qué cambiaste, dónde y por qué eso resuelve el hallazgo, más el commit. Después va lo que pida
+     el procedimiento (por ejemplo la línea `Class: ...`).
+   - Como máximo **3 pushes de correcciones**. Si después de eso Crysk sigue con hallazgos, o el
+     procedimiento te dice que frenes y preguntes a un humano, frená: dejá un comentario en la task
+     con qué quedó pendiente y por qué.
+   - Nunca comentes `/crysk override` ni mergees el PR: el merge lo decide el dispatcher.
+8. **Cerrá en Kaneo:** comentario final con el formato "Resultado" del skill más el link del PR y
+   un resumen de la revisión (hallazgos y qué hiciste con cada uno), y movés la task a `in-review`.
 
 ## Explorar sitios externos
 
@@ -78,8 +98,8 @@ dividirla en dos:
   cambiar y cuál es el resultado esperado: comentá las dudas concretas, devolvé la task a `to-do`
   y terminá sin PR.
 - **Si no podés terminar** (tests que no logran pasar, algo fuera del repo, algo irreversible):
-  comentá "Necesita humano: <motivo concreto>" y devolvé la task a `to-do`. Si ya abriste el PR,
-  dejalo abierto y nombralo en el comentario.
+  comentá "Necesita humano: <motivo concreto>". Sin PR, devolvé la task a `to-do`. Con PR, dejalo
+  abierto, nombralo en el comentario y dejá la task en `in-review`: el dispatcher te escala.
 
 ## Reglas
 
@@ -96,4 +116,4 @@ Terminá tu respuesta con **una sola línea final**, exactamente así:
 PR_URL: <url del PR>
 ```
 
-o, si no abriste PR, `PR_URL: none`.
+o, si no abriste PR, `PR_URL: none`. Si retomaste un PR existente, poné ese mismo link.

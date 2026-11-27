@@ -1,25 +1,40 @@
 /**
- * Dispatcher of the software factory: picks the next Kaneo task an agent should work on.
+ * Dispatcher of the software factory.
  *
- * Rule: a task is eligible when it is in the `to-do` column and has the `agent-task` label.
- * Concurrency is 1: if an `agent-task` is already `in-progress`, nothing is picked.
- * A task blocked (Kaneo "blocks" relation) by a task that is not `done` is skipped.
- *
- * For the picked task it launches a headless Claude Code agent (`claude -p`, prompt in
- * agent-prompt.md) that claims the task, creates a worktree, implements it and opens a PR.
- * The dispatcher waits for the agent to finish before the next poll.
- * With --dry-run it only prints the agent command and prompt, and changes nothing.
+ * Each run (once, or every --interval seconds):
+ * 1. Pull requests of agent tasks in `in-review` (with `agent-task`):
+ *    - merged by hand: the task moves to `done`;
+ *    - Crysk loop closed with no blocking finding: squash-merge, task to `done`;
+ *    - findings to fix: the agent runs its review loop on it (step 2).
+ * 2. One agent at a time (`claude -p`, prompt in agent-prompt.md). Open PRs with findings come
+ *    first; otherwise the next `to-do` task with `agent-task` not blocked by an unfinished task.
+ *    The agent implements the task, opens the PR and answers Crysk's review until it closes.
+ * 3. After the agent, deterministic code decides: merge, or escalate to a human (Kaneo comment,
+ *    desktop notification and a GitHub mention) when blocking findings remain.
  *
  * Usage:
  *   npx tsx tools/factory/dispatcher.ts                 # run once and exit
  *   npx tsx tools/factory/dispatcher.ts --interval 90   # run every 90 seconds
- *   npx tsx tools/factory/dispatcher.ts --dry-run       # print only, write nothing
+ *   npx tsx tools/factory/dispatcher.ts --dry-run       # print only, change nothing
  */
-import { execFileSync, spawn } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFile, execFileSync, spawn } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { parseArgs } from "node:util";
+import { decideReview, parseCryskStatus, prNumberFromUrl, type ReviewAction } from "./lib/review.ts";
+import {
+  AGENT_LABEL,
+  DONE_STATUS,
+  IN_REVIEW_STATUS,
+  PRIORITY_ORDER,
+  READY_STATUS,
+  decide,
+  isAgentTask,
+  type Block,
+  type Priority,
+  type Task,
+} from "./lib/select.ts";
 // Shared with the factory UI, which reads these files (tools/factory/ui).
 import type { RunningAgent } from "./ui/src/lib/runningAgent.ts";
 
@@ -27,11 +42,6 @@ const KANEO_URL = process.env.KANEO_URL ?? "http://localhost:5173";
 const PROJECT_ID = process.env.KANEO_PROJECT_ID ?? "zqkq7jtldcvxardzfsdyka33";
 const ENV_FILE = join(homedir(), ".config", "factory", "kaneo.env");
 
-const AGENT_LABEL = "agent-task";
-const READY_STATUS = "to-do";
-const IN_PROGRESS_STATUS = "in-progress";
-const IN_REVIEW_STATUS = "in-review";
-const DONE_STATUS = "done";
 const AREA_LABELS = ["backend", "frontend", "scrapling"] as const;
 type Area = (typeof AREA_LABELS)[number];
 
@@ -42,7 +52,8 @@ const AREA_DIRS: Record<Area, string[]> = {
   scrapling: ["tools/scrapling", "apps/shared"],
 };
 
-const AGENT_TIMEOUT_MS = 90 * 60 * 1000;
+// The agent may wait for Crysk reviews (up to 75 min each) inside its loop.
+const AGENT_TIMEOUT_MS = 180 * 60 * 1000;
 
 const ALLOWED_TOOLS = [
   "Read",
@@ -53,6 +64,10 @@ const ALLOWED_TOOLS = [
   "Bash(git *)",
   "Bash(gh pr create *)",
   "Bash(gh pr view *)",
+  // Crysk review loop: read the diff and review threads, post /crysk commands.
+  "Bash(gh pr diff *)",
+  "Bash(gh pr comment *)",
+  "Bash(gh api *)",
   "Bash(npm *)",
   "Bash(npx *)",
   "Bash(uv *)",
@@ -66,12 +81,14 @@ const ALLOWED_TOOLS = [
 ];
 
 // Prefix-based deny rules are a seatbelt, not a guarantee: the real protection for main
-// is GitHub branch protection (step 7).
+// is GitHub branch protection (step 7). Merging is the dispatcher's job, never the agent's.
 const DISALLOWED_TOOLS = [
   "Bash(git push --force *)",
   "Bash(git push -f *)",
   "Bash(git push origin main *)",
   "Bash(git reset --hard *)",
+  "Bash(gh pr merge *)",
+  "Bash(gh pr comment * /crysk override*)",
   "mcp__kaneo__delete_task",
   "mcp__kaneo__delete_label",
   "mcp__kaneo__delete_task_comment",
@@ -80,26 +97,6 @@ const DISALLOWED_TOOLS = [
   "mcp__kaneo__create_project",
   "mcp__kaneo__update_project",
 ];
-
-const PRIORITY_ORDER = ["urgent", "high", "medium", "low", "no-priority"] as const;
-type Priority = (typeof PRIORITY_ORDER)[number];
-
-interface Task {
-  id: string;
-  number: number;
-  title: string;
-  status: string;
-  priority: Priority;
-  labels: string[];
-  /** Id of this task's own copy of the `agent-task` label (Kaneo copies labels per task). */
-  agentLabelId: string | null;
-}
-
-/** `blockerId` must be done before `blockedId` can be picked. */
-interface Block {
-  blockerId: string;
-  blockedId: string;
-}
 
 interface TasksPage {
   tasks: Task[];
@@ -221,6 +218,16 @@ async function fetchTaskStatus(apiKey: string, taskId: string): Promise<string> 
   return body.status;
 }
 
+/** The task's pull request, from the links the dispatcher stores in Kaneo. */
+async function fetchPrUrl(apiKey: string, taskId: string): Promise<string | null> {
+  const body = await getJson(apiKey, `/external-link/task/${taskId}`);
+  if (!Array.isArray(body)) return null;
+  const link = body.find(
+    (raw: unknown) => isRecord(raw) && raw.resourceType === "pull_request" && typeof raw.url === "string",
+  );
+  return isRecord(link) && typeof link.url === "string" ? link.url : null;
+}
+
 async function fetchBlocks(apiKey: string): Promise<Block[]> {
   return parseBlocks(await getJson(apiKey, `/task-relation/project/${PROJECT_ID}`));
 }
@@ -243,59 +250,48 @@ async function fetchAllTasks(apiKey: string): Promise<Task[]> {
   return tasks;
 }
 
-// ---------- selection ----------
-
-function isAgentTask(task: Task): boolean {
-  return task.labels.includes(AGENT_LABEL);
+async function comment(apiKey: string, task: Task, content: string): Promise<void> {
+  await send(apiKey, "POST", `/comment/${task.id}`, { content });
 }
 
-function areasOf(task: Task): string[] {
-  return task.labels.filter((label) => (AREA_LABELS as readonly string[]).includes(label));
+async function setStatus(apiKey: string, task: Task, status: string): Promise<void> {
+  await send(apiKey, "PUT", `/task/status/${task.id}`, { status });
 }
 
-function byPriorityThenNumber(a: Task, b: Task): number {
-  const priorityDiff = PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority);
-  return priorityDiff !== 0 ? priorityDiff : a.number - b.number;
+async function removeAgentLabel(apiKey: string, task: Task): Promise<void> {
+  if (task.agentLabelId) await send(apiKey, "DELETE", `/label/${task.agentLabelId}/task`);
 }
 
-interface Skipped {
-  task: Task;
-  /** Human-readable names of the unfinished blockers, e.g. "CW-10 (to-do)". */
-  blockers: string[];
-}
+// ---------- shell helpers (git, gh, crysk) ----------
 
-type Decision =
-  | { kind: "busy"; running: Task }
-  | { kind: "idle"; skipped: Skipped[] }
-  | { kind: "pick"; task: Task; skipped: Skipped[] };
-
-/** Names of the tasks that block `task` and are not done. A blocker we cannot find counts as unfinished. */
-function unfinishedBlockers(task: Task, blocks: Block[], tasksById: Map<string, Task>): string[] {
-  return blocks
-    .filter((block) => block.blockedId === task.id)
-    .flatMap((block) => {
-      const blocker = tasksById.get(block.blockerId);
-      if (!blocker) return [`${block.blockerId} (no encontrada)`];
-      return blocker.status === DONE_STATUS ? [] : [`CW-${blocker.number} (${blocker.status})`];
+/** Runs a command and resolves with stdout even when it exits non-zero (some CLIs report through exit codes). */
+function run(cmd: string, args: string[], cwd: string): Promise<{ code: number; stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, { cwd, maxBuffer: 32 * 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error && typeof error.code !== "number") {
+        reject(error); // the command could not start at all
+        return;
+      }
+      resolve({ code: typeof error?.code === "number" ? error.code : 0, stdout, stderr });
     });
+  });
 }
 
-function decide(tasks: Task[], blocks: Block[]): Decision {
-  const running = tasks.find((task) => isAgentTask(task) && task.status === IN_PROGRESS_STATUS);
-  if (running) return { kind: "busy", running };
+async function prState(repoRoot: string, pr: number): Promise<string> {
+  const result = await run("gh", ["pr", "view", String(pr), "--json", "state", "--jq", ".state"], repoRoot);
+  if (result.code !== 0) throw new Error(`gh pr view ${pr} failed: ${result.stderr.trim()}`);
+  return result.stdout.trim(); // OPEN, MERGED or CLOSED
+}
 
-  const tasksById = new Map(tasks.map((task) => [task.id, task]));
-  const candidates = tasks
-    .filter((task) => isAgentTask(task) && task.status === READY_STATUS)
-    .sort(byPriorityThenNumber);
-
-  const skipped: Skipped[] = [];
-  for (const task of candidates) {
-    const blockers = unfinishedBlockers(task, blocks, tasksById);
-    if (blockers.length === 0) return { kind: "pick", task, skipped };
-    skipped.push({ task, blockers });
+/** `crysk status --json` for a PR. With `wait`, blocks until the running review ends (Crysk caps it at 90 min). */
+async function cryskStatus(repoRoot: string, pr: number, wait: boolean) {
+  const args = ["-y", "crysk", "status", "--pr", String(pr), "--json", ...(wait ? ["--wait"] : [])];
+  const result = await run("npx", args, repoRoot);
+  try {
+    return parseCryskStatus(JSON.parse(result.stdout));
+  } catch {
+    throw new Error(`crysk status --pr ${pr} gave no usable JSON (exit ${result.code}): ${result.stderr.trim().slice(-300)}`);
   }
-  return { kind: "idle", skipped };
 }
 
 // ---------- agent launch ----------
@@ -322,9 +318,17 @@ interface AgentRun {
   args: string[];
 }
 
-function planAgentRun(task: Task, repoRoot: string, worktreesDir: string): AgentRun {
+function worktreesDirOf(repoRoot: string): string {
+  return join(repoRoot, "..", `${basename(repoRoot)}-worktrees`);
+}
+
+function worktreeOf(repoRoot: string, task: Task): string {
+  return join(worktreesDirOf(repoRoot), `CW-${task.number}`);
+}
+
+function planAgentRun(task: Task, repoRoot: string, prUrl: string | null): AgentRun {
   const branch = `agent/CW-${task.number}-${slugify(task.title)}`;
-  const worktree = join(worktreesDir, `CW-${task.number}`);
+  const worktree = worktreeOf(repoRoot, task);
   const areas = task.labels.filter(isArea);
   const scope =
     areas.length > 0
@@ -339,6 +343,7 @@ function planAgentRun(task: Task, repoRoot: string, worktreesDir: string): Agent
     WORKTREE: worktree,
     REPO: repoRoot,
     SCOPE: scope,
+    PR: prUrl ?? "ninguno",
   };
   const template = readFileSync(join(repoRoot, "tools", "factory", "agent-prompt.md"), "utf8");
   const prompt = template.replace(/\{\{(\w+)\}\}/g, (match, key: string) => {
@@ -355,7 +360,7 @@ function planAgentRun(task: Task, repoRoot: string, worktreesDir: string): Agent
     "--permission-mode",
     "dontAsk",
     "--add-dir",
-    worktreesDir,
+    worktreesDirOf(repoRoot),
     "--allowedTools",
     ...ALLOWED_TOOLS,
     "--disallowedTools",
@@ -391,9 +396,9 @@ function parseAgentOutput(stdout: string): AgentResult {
   };
 }
 
-function runAgent(run: AgentRun, repoRoot: string, onStart: (pid: number) => void): Promise<AgentResult> {
+function runAgent(agentRun: AgentRun, repoRoot: string, onStart: (pid: number) => void): Promise<AgentResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn("claude", run.args, {
+    const child = spawn("claude", agentRun.args, {
       cwd: repoRoot, // the Kaneo MCP server is configured with local scope for this folder
       stdio: ["ignore", "pipe", "inherit"],
       timeout: AGENT_TIMEOUT_MS,
@@ -425,13 +430,13 @@ function runningAgentFile(runsDir: string, task: Task): string {
  * One file per running agent, removed when the agent ends. If the dispatcher is killed the file
  * stays behind, so readers must check that `pid` is still alive.
  */
-function registerRunningAgent(runsDir: string, task: Task, run: AgentRun, pid: number): void {
+function registerRunningAgent(runsDir: string, task: Task, agentRun: AgentRun, pid: number): void {
   const agent: RunningAgent = {
     taskNumber: task.number,
     taskId: task.id,
     taskTitle: task.title,
-    branch: run.branch,
-    worktree: run.worktree,
+    branch: agentRun.branch,
+    worktree: agentRun.worktree,
     pid,
     startedAt: new Date().toISOString(),
   };
@@ -439,112 +444,239 @@ function registerRunningAgent(runsDir: string, task: Task, run: AgentRun, pid: n
   writeFileSync(runningAgentFile(runsDir, task), JSON.stringify(agent, null, 2));
 }
 
-// ---------- after the agent (deterministic safety net) ----------
+// ---------- outcomes: merge, close, escalate ----------
+
+async function removeWorktree(repoRoot: string, task: Task): Promise<void> {
+  const worktree = worktreeOf(repoRoot, task);
+  if (!existsSync(worktree)) return;
+  const result = await run("git", ["worktree", "remove", "--force", worktree], repoRoot);
+  if (result.code !== 0) console.error(`  no se pudo borrar el worktree ${worktree}: ${result.stderr.trim()}`);
+}
+
+/** The PR was merged (by us or by hand): the task is done and its worktree goes away. */
+async function closeDone(apiKey: string, repoRoot: string, task: Task, pr: number, how: string): Promise<void> {
+  await removeWorktree(repoRoot, task);
+  await setStatus(apiKey, task, DONE_STATUS);
+  await comment(apiKey, task, how);
+  console.log(`  CW-${task.number} pasó a ${DONE_STATUS} (PR #${pr})`);
+}
+
+/**
+ * Escalates to a human: comment in Kaneo, task stays in in-review without `agent-task` (so no agent
+ * takes it again), desktop notification and a mention on the PR.
+ */
+async function escalate(apiKey: string, repoRoot: string, task: Task, pr: number | null, reason: string): Promise<void> {
+  const prText = pr ? ` PR #${pr}.` : "";
+  await comment(
+    apiKey,
+    task,
+    `Necesita revisión humana: ${reason}.${prText} El dispatcher no mergeó, dejó la task en ` +
+      `${IN_REVIEW_STATUS} y le sacó \`${AGENT_LABEL}\`. Para que un agente la retome, volvé a ponérselo.`,
+  );
+  await setStatus(apiKey, task, IN_REVIEW_STATUS);
+  await removeAgentLabel(apiKey, task);
+  console.log(`  CW-${task.number} escalada: ${reason}`);
+
+  const notify = await run("notify-send", ["--urgency=critical", `Factory: CW-${task.number} necesita revisión`, reason], repoRoot).catch(
+    (error: unknown) => ({ code: 1, stdout: "", stderr: String(error) }),
+  );
+  if (notify.code !== 0) console.error(`  notify-send falló: ${notify.stderr.trim()}`);
+
+  if (pr) {
+    const user = process.env.FACTORY_NOTIFY_GITHUB_USER ?? (await run("gh", ["api", "user", "--jq", ".login"], repoRoot)).stdout.trim();
+    const mention = user ? `@${user} ` : "";
+    const body = `${mention}la factory no pudo cerrar este PR sola: ${reason}. Necesita revisión humana.`;
+    const posted = await run("gh", ["pr", "comment", String(pr), "--body", body], repoRoot);
+    if (posted.code !== 0) console.error(`  no se pudo comentar el PR #${pr}: ${posted.stderr.trim()}`);
+  }
+}
+
+/** Squash-merges the PR, deletes its branch and closes the task. A failed merge escalates. */
+async function mergePr(apiKey: string, repoRoot: string, task: Task, pr: number, openSuggestions: string[]): Promise<void> {
+  // The branch is checked out in the worktree, and git refuses to delete a branch in use.
+  await removeWorktree(repoRoot, task);
+  const merged = await run("gh", ["pr", "merge", String(pr), "--squash", "--delete-branch"], repoRoot);
+  if (merged.code !== 0) {
+    await escalate(apiKey, repoRoot, task, pr, `el merge falló (${merged.stderr.trim().slice(-200)})`);
+    return;
+  }
+  const pending =
+    openSuggestions.length > 0
+      ? ` Quedaron sin responder hallazgos menores que no bloquean: ${openSuggestions.join(", ")}.`
+      : "";
+  await closeDone(apiKey, repoRoot, task, pr, `Mergeado por el dispatcher: la revisión de Crysk no dejó hallazgos bloqueantes (PR #${pr}).${pending}`);
+}
+
+async function applyReviewAction(apiKey: string, repoRoot: string, task: Task, pr: number, action: ReviewAction): Promise<void> {
+  switch (action.kind) {
+    case "merge":
+      await mergePr(apiKey, repoRoot, task, pr, action.openSuggestions);
+      break;
+    case "escalate":
+      await escalate(apiKey, repoRoot, task, pr, action.reason);
+      break;
+    case "wait":
+    case "fix":
+      break; // handled by the caller
+  }
+}
+
+/** Old safety net: no PR at all. The task goes back to to-do without `agent-task`. */
+async function returnToReady(apiKey: string, task: Task, reason: string): Promise<void> {
+  await comment(
+    apiKey,
+    task,
+    `Necesita humano: ${reason}. El dispatcher la dejó en ${READY_STATUS} y le sacó el label ` +
+      `\`${AGENT_LABEL}\`. Para reintentar con el agente, volvé a ponérselo.`,
+  );
+  await setStatus(apiKey, task, READY_STATUS);
+  await removeAgentLabel(apiKey, task);
+  console.log(`  CW-${task.number} necesita humano: ${reason}`);
+}
 
 /**
  * Runs after every agent run, whatever happened.
- * - Links the PR in Kaneo when the agent reported one.
- * - Unless the task ended in in-review with a PR, it comments "Necesita humano", moves the task
- *   back to to-do and removes `agent-task`, so the next poll does not pick it again in a loop.
+ * - No PR: back to to-do without `agent-task` (the agent stopped or crashed before opening one).
+ * - PR: wait for Crysk to settle, then merge or escalate. The agent already ran its loop.
  */
-async function afterAgent(apiKey: string, task: Task, prUrl: string | null, failure: string | null): Promise<void> {
-  const status = await fetchTaskStatus(apiKey, task.id);
-
-  if (prUrl) {
+async function afterAgent(
+  apiKey: string,
+  repoRoot: string,
+  task: Task,
+  prUrl: string | null,
+  isNewPr: boolean,
+  failure: string | null,
+): Promise<void> {
+  const pr = prUrl ? prNumberFromUrl(prUrl) : null;
+  if (prUrl && isNewPr) {
     await send(apiKey, "POST", `/external-link/task/${task.id}`, {
       url: prUrl,
-      title: `Pull request ${prUrl.split("/").pop() ?? ""}`.trim(),
+      title: `Pull request ${pr ?? ""}`.trim(),
       resourceType: "pull_request",
     });
     console.log(`  PR vinculado en Kaneo: ${prUrl}`);
   }
 
-  if (failure === null && status === IN_REVIEW_STATUS && prUrl) {
-    console.log(`  CW-${task.number} quedó en ${IN_REVIEW_STATUS}`);
+  if (pr === null) {
+    const status = await fetchTaskStatus(apiKey, task.id);
+    const reason =
+      failure ??
+      (status === READY_STATUS
+        ? "el agente frenó y devolvió la task (ver sus comentarios)"
+        : `el agente terminó con la task en ${status} y sin PR`);
+    await returnToReady(apiKey, task, reason);
     return;
   }
 
-  const reason =
-    failure ??
-    (status === READY_STATUS
-      ? "el agente frenó y devolvió la task (ver sus comentarios)"
-      : status === IN_REVIEW_STATUS
-        ? "la task quedó en in-review pero el agente no reportó un PR"
-        : `el agente terminó con la task en ${status}`);
-  await send(apiKey, "POST", `/comment/${task.id}`, {
-    content:
-      `Necesita humano: ${reason}. El dispatcher la dejó en ${READY_STATUS} y le sacó el label ` +
-      `\`${AGENT_LABEL}\`. Para reintentar con el agente, volvé a ponérselo.`,
-  });
-  if (status !== READY_STATUS) {
-    await send(apiKey, "PUT", `/task/status/${task.id}`, { status: READY_STATUS });
+  if (failure) {
+    await escalate(apiKey, repoRoot, task, pr, failure);
+    return;
   }
-  if (task.agentLabelId) {
-    await send(apiKey, "DELETE", `/label/${task.agentLabelId}/task`);
-  }
-  console.log(`  CW-${task.number} necesita humano: ${reason}`);
+  console.log(`  esperando el veredicto de Crysk sobre el PR #${pr}...`);
+  const action = decideReview(await cryskStatus(repoRoot, pr, true), true);
+  await applyReviewAction(apiKey, repoRoot, task, pr, action);
 }
 
 function describe(task: Task): string {
-  const areas = areasOf(task);
+  const areas = task.labels.filter(isArea);
   const scope = areas.length > 0 ? areas.join(", ") : "sin área (todo el repo)";
   return `CW-${task.number} "${task.title}" [${task.priority}] (${scope})`;
 }
 
 // ---------- main ----------
 
+interface OpenPr {
+  url: string;
+  number: number;
+}
+
+/**
+ * Step 1: settle the PRs of agent tasks in in-review. Merges and closes happen here; PRs whose
+ * findings need the agent are returned so the selection can give them priority.
+ */
+async function settleOpenPrs(apiKey: string, repoRoot: string, tasks: Task[], dryRun: boolean): Promise<Map<string, OpenPr>> {
+  const needsFix = new Map<string, OpenPr>();
+  for (const task of tasks.filter((t) => isAgentTask(t) && t.status === IN_REVIEW_STATUS)) {
+    const url = await fetchPrUrl(apiKey, task.id);
+    const pr = url ? prNumberFromUrl(url) : null;
+    if (!url || pr === null) {
+      console.log(`  CW-${task.number} está en ${IN_REVIEW_STATUS} sin PR vinculado: la salteo`);
+      continue;
+    }
+    const state = await prState(repoRoot, pr);
+    if (state === "MERGED") {
+      if (dryRun) console.log(`  [dry-run] CW-${task.number}: PR #${pr} ya mergeado, pasaría a ${DONE_STATUS}`);
+      else await closeDone(apiKey, repoRoot, task, pr, `El PR #${pr} se mergeó: la task pasa a ${DONE_STATUS}.`);
+      continue;
+    }
+    if (state !== "OPEN") {
+      console.log(`  CW-${task.number}: el PR #${pr} está ${state}, lo dejo para un humano`);
+      continue;
+    }
+    const action = decideReview(await cryskStatus(repoRoot, pr, false), false);
+    console.log(`  CW-${task.number}: PR #${pr} -> ${action.kind}`);
+    if (action.kind === "fix") needsFix.set(task.id, { url, number: pr });
+    else if (action.kind !== "wait" && !dryRun) await applyReviewAction(apiKey, repoRoot, task, pr, action);
+  }
+  return needsFix;
+}
+
 async function tick(apiKey: string, dryRun: boolean): Promise<void> {
+  const repoRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
   const [tasks, blocks] = await Promise.all([fetchAllTasks(apiKey), fetchBlocks(apiKey)]);
-  const decision = decide(tasks, blocks);
   const now = new Date().toISOString();
+
+  const needsFix = await settleOpenPrs(apiKey, repoRoot, tasks, dryRun);
+  // Merges and closes above may have changed statuses (and unblocked tasks), so read them again.
+  const current = dryRun ? tasks : await fetchAllTasks(apiKey);
+  const decision = decide(current, blocks, new Set(needsFix.keys()));
+
   if (decision.kind !== "busy") {
     for (const { task, blockers } of decision.skipped) {
       console.log(`${now} salteo CW-${task.number}: bloqueada por ${blockers.join(", ")}`);
     }
   }
-  switch (decision.kind) {
-    case "busy":
-      console.log(`${now} ocupado: ya está en curso ${describe(decision.running)}`);
-      break;
-    case "idle":
-      console.log(`${now} nada para tomar (ninguna task en ${READY_STATUS} con ${AGENT_LABEL} está libre)`);
-      break;
-    case "pick": {
-      const repoRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
-      const worktreesDir = join(repoRoot, "..", `${basename(repoRoot)}-worktrees`);
-      const run = planAgentRun(decision.task, repoRoot, worktreesDir);
-      if (dryRun) {
-        console.log(`${now} [dry-run] lanzaría el agente para ${describe(decision.task)}`);
-        console.log(`  rama: ${run.branch}\n  worktree: ${run.worktree}`);
-        console.log(`  claude ${run.args.filter((arg) => arg !== run.prompt).map((arg) => JSON.stringify(arg)).join(" ")}`);
-        console.log(`  --- prompt ---\n${run.prompt}`);
-        break;
-      }
-      mkdirSync(worktreesDir, { recursive: true });
-      console.log(`${now} lanzando agente para ${describe(decision.task)} en ${run.worktree}`);
-      let prUrl: string | null = null;
-      let failure: string | null = null;
-      const runsDir = join(repoRoot, "tools", "factory", "runs");
-      try {
-        const result = await runAgent(run, repoRoot, (pid) =>
-          registerRunningAgent(runsDir, decision.task, run, pid),
-        );
-        console.log(
-          `${new Date().toISOString()} agente terminó: error=${result.isError} turnos=${result.numTurns ?? "?"} PR=${result.prUrl ?? "ninguno"}`,
-        );
-        console.log(result.summary);
-        prUrl = result.prUrl;
-        if (result.isError) failure = "la ejecución del agente terminó con error";
-      } catch (error) {
-        failure = `el agente no terminó (${error instanceof Error ? error.message : String(error)})`;
-        console.error(`${new Date().toISOString()} ${failure}`);
-      } finally {
-        rmSync(runningAgentFile(runsDir, decision.task), { force: true });
-      }
-      await afterAgent(apiKey, decision.task, prUrl, failure);
-      break;
-    }
+  if (decision.kind === "busy") {
+    console.log(`${now} ocupado: ya está en curso ${describe(decision.running)}`);
+    return;
   }
+  if (decision.kind === "idle") {
+    console.log(`${now} nada para tomar (ninguna task en ${READY_STATUS} con ${AGENT_LABEL} está libre)`);
+    return;
+  }
+
+  const task = decision.task;
+  const existingPr = decision.kind === "review" ? (needsFix.get(task.id) ?? null) : null;
+  const agentRun = planAgentRun(task, repoRoot, existingPr?.url ?? null);
+  const what = decision.kind === "review" ? `corregir la revisión del PR #${existingPr?.number}` : "implementar";
+  if (dryRun) {
+    console.log(`${now} [dry-run] lanzaría el agente para ${what}: ${describe(task)}`);
+    console.log(`  rama: ${agentRun.branch}\n  worktree: ${agentRun.worktree}`);
+    console.log(`  claude ${agentRun.args.filter((arg) => arg !== agentRun.prompt).map((arg) => JSON.stringify(arg)).join(" ")}`);
+    console.log(`  --- prompt ---\n${agentRun.prompt}`);
+    return;
+  }
+
+  mkdirSync(worktreesDirOf(repoRoot), { recursive: true });
+  console.log(`${now} lanzando agente para ${what}: ${describe(task)} en ${agentRun.worktree}`);
+  let prUrl: string | null = existingPr?.url ?? null;
+  let failure: string | null = null;
+  const runsDir = join(repoRoot, "tools", "factory", "runs");
+  try {
+    const result = await runAgent(agentRun, repoRoot, (pid) => registerRunningAgent(runsDir, task, agentRun, pid));
+    console.log(
+      `${new Date().toISOString()} agente terminó: error=${result.isError} turnos=${result.numTurns ?? "?"} PR=${result.prUrl ?? "ninguno"}`,
+    );
+    console.log(result.summary);
+    prUrl = result.prUrl ?? prUrl;
+    if (result.isError) failure = "la ejecución del agente terminó con error";
+  } catch (error) {
+    failure = `el agente no terminó (${error instanceof Error ? error.message : String(error)})`;
+    console.error(`${new Date().toISOString()} ${failure}`);
+  } finally {
+    rmSync(runningAgentFile(runsDir, task), { force: true });
+  }
+  await afterAgent(apiKey, repoRoot, task, prUrl, existingPr === null, failure);
 }
 
 function loadApiKey(): string {

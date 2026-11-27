@@ -144,14 +144,26 @@ npm run factory:ui   # http://localhost:5180/agents
 
 It refreshes every 3 seconds. The dispatcher writes one file per running agent in `tools/factory/runs/` (gitignored) and removes it when the agent ends; the app reads that folder and hides entries whose process is gone (for example, after the dispatcher was killed). Tests: `npm --workspace @cars-webscrapper/factory-ui test`.
 
+### Code review and merge (Crysk)
+
+Every pull request is reviewed by [Crysk](https://crysk.dev) in GitHub Actions (`.github/workflows/crysk.yml`, settings in `.crysk/config.json`). It posts every finding inline, minor suggestions included, and re-reviews at most 3 times per PR. It runs on your Claude subscription through the `CRYSK_CLAUDE_OAUTH_TOKEN` repository secret (create it with `claude setup-token`, then `gh secret set CRYSK_CLAUDE_OAUTH_TOKEN`). Comment `/crysk review` on a PR to force a review.
+
+Crysk only reviews; it never edits code. The agent closes the loop in the same run: after opening the PR it follows Crysk's `crysk-loop` procedure, fixes every finding (or dismisses it with an argument), explains the fix in its reply on each thread, and pushes. At most 3 pushes of fixes.
+
+Then the dispatcher decides, without an LLM, from `crysk status --json`:
+
+- **No blocking finding left** (BLOCKER or CRITICAL): it squash-merges the PR, deletes the branch and the worktree, and moves the task to Done. Minor findings left unanswered do not block; they are listed in the Kaneo comment.
+- **Blocking findings left, the merge fails, or the agent crashed with a PR open:** it does not merge. It comments in Kaneo, leaves the task In Review without `agent-task`, sends a desktop notification (`notify-send`) and mentions you on the PR. Add `agent-task` again to let an agent retry. The GitHub mention uses the account `gh` is logged in as (or `FACTORY_NOTIFY_GITHUB_USER`); GitHub does not notify you about your own comments, so it only reaches you once the agent pushes with a separate account.
+
+On every run the dispatcher also checks agent PRs that are already open: merged by hand means the task goes to Done; findings still pending send the agent back to fix them before it takes any new task.
+
 ### After a run
 
-- **Success:** the task is In Review, with the PR linked in Kaneo and a result comment. Review and merge the PR yourself.
-- **Needs a human:** if the agent stopped (unclear task, failing tests) or the run failed, the dispatcher comments "Necesita humano: ...", moves the task back to To Do and **removes `agent-task`**, so it is not retried in a loop. Read the comments, fix the task, and add the label again to retry.
-- Each task gets its own worktree in `../cars-webscrapper-worktrees/CW-N` on branch `agent/CW-N-<slug>`. Remove it when the PR is merged:
-  ```bash
-  git worktree remove ../cars-webscrapper-worktrees/CW-7
-  ```
+- **Merged:** the task is Done, with the PR linked in Kaneo and a result comment.
+- **Needs a human:** see above for PRs. If the agent stopped before opening a PR (unclear task, failing tests) or the run failed, the dispatcher comments "Necesita humano: ...", moves the task back to To Do and **removes `agent-task`**, so it is not retried in a loop. Read the comments, fix the task, and add the label again to retry.
+- Each task gets its own worktree in `../cars-webscrapper-worktrees/CW-N` on branch `agent/CW-N-<slug>`. The dispatcher removes it after the merge.
+
+Dispatcher tests: `npm --workspace @cars-webscrapper/factory test` (selection and merge rules in `tools/factory/lib/`).
 
 ### Known limits
 

@@ -38,5 +38,7 @@ Product management (tasks, projects, labels) lives in Kaneo, reachable through t
 
 - Run: `npx tsx tools/factory/dispatcher.ts` (once), `--interval <seconds>` (loop), `--dry-run` (print only).
 - The Kaneo REST API key lives in `~/.config/factory/kaneo.env` (`KANEO_API_KEY`), outside the repo.
-- If a run ends without the task in `in-review` with a PR, the dispatcher comments "Necesita humano", moves it to `to-do` and removes `agent-task`. Re-add the label to retry.
+- Crysk (`.github/workflows/crysk.yml`, `.crysk/config.json`) reviews every PR in CI; it never edits code. The agent runs the `crysk-loop` procedure (`npx -y crysk skills load crysk-loop`) to fix findings, max 3 fix pushes. The dispatcher then merges (squash, task to `done`) when no BLOCKER/CRITICAL is left, or escalates: Kaneo comment, task stays `in-review` without `agent-task`, `notify-send` and a PR mention. Only the dispatcher merges.
+- Pure rules live in `tools/factory/lib/` (`select.ts`: which task; `review.ts`: merge/fix/escalate) with vitest tests (`npm --workspace @cars-webscrapper/factory test`).
+- If a run ends without a PR, the dispatcher comments "Necesita humano", moves the task to `to-do` and removes `agent-task`. Re-add the label to retry.
 - `tools/factory/ui` (npm workspace `@cars-webscrapper/factory-ui`, `npm run factory:ui`, port 5180) is a separate React + shadcn app that lists the running agents. It has no backend: a Vite middleware serves `/api/agents` from `tools/factory/runs/*.json`, which the dispatcher writes per running agent. The `RunningAgent` type in `ui/src/lib/runningAgent.ts` is shared by both sides.
