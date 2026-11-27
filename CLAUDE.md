@@ -32,4 +32,10 @@ Flow: `POST /searches` (SSE stream) -> `searchController` -> `searchService` -> 
 
 Product management (tasks, projects, labels) lives in Kaneo, reachable through the `mcp__kaneo__*` tools. Use it, not Linear or GitHub issues, to look up or update tickets. The `tickets/` folder in the repo holds local ticket notes.
 
-`.claude/` and `.cursor/` contain the Impeccable design skill and its hooks (UI design work only).
+## Software factory
+
+`tools/factory/dispatcher.ts` picks the next Kaneo task in `to-do` with the `agent-task` label (skipping tasks blocked by unfinished ones) and launches a headless agent (`claude -p`, prompt in `tools/factory/agent-prompt.md`). That agent owns the task end to end: it moves it in Kaneo, works in its own worktree (`../cars-webscrapper-worktrees/CW-N`, branch `agent/CW-N-<slug>`), and **is allowed to commit, push its branch and open a PR**. It never pushes to `main`.
+
+- Run: `npx tsx tools/factory/dispatcher.ts` (once), `--interval <seconds>` (loop), `--dry-run` (print only).
+- The Kaneo REST API key lives in `~/.config/factory/kaneo.env` (`KANEO_API_KEY`), outside the repo.
+- If a run ends without the task in `in-review` with a PR, the dispatcher comments "Necesita humano", moves it to `to-do` and removes `agent-task`. Re-add the label to retry.
