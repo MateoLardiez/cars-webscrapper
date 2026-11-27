@@ -12,6 +12,7 @@ to the API's filter, so the site only returns matching cars.
 """
 
 import json
+import time
 from typing import Any, Callable
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
@@ -69,12 +70,35 @@ _FILTER_PARAMS = ("min_km", "max_km", "min_price", "max_price", "transmission", 
 Post = Callable[[dict[str, Any]], dict[str, Any]]
 
 
-def _post_graphql(payload: dict[str, Any]) -> dict[str, Any]:
-    """The `data` of a GraphQL answer. HTTP and GraphQL errors raise."""
+RETRY_DELAY_SECONDS = 2.0
+
+
+def _is_transient(status: int) -> bool:
+    return status == 429 or status >= 500
+
+
+def _post_once(payload: dict[str, Any]) -> tuple[int, bytes]:
     page = Fetcher.post(API_URL, json=payload, impersonate="chrome", stealthy_headers=True)
-    if page.status != 200:
-        raise RuntimeError(f"HTTP {page.status}")
-    answer = json.loads(page.body)
+    return page.status, page.body
+
+
+def _post_graphql(
+    payload: dict[str, Any],
+    send: Callable[[dict[str, Any]], tuple[int, bytes]] = _post_once,
+    sleep: Callable[[float], None] = time.sleep,
+) -> dict[str, Any]:
+    """The `data` of a GraphQL answer. HTTP and GraphQL errors raise. A network
+    error, 429 or 5xx is retried once, so one blip does not lose a page or a car."""
+    try:
+        status, body = send(payload)
+    except Exception:
+        status, body = 0, b""
+    if status == 0 or _is_transient(status):
+        sleep(RETRY_DELAY_SECONDS)
+        status, body = send(payload)  # a second failure raises to the caller
+    if status != 200:
+        raise RuntimeError(f"HTTP {status}")
+    answer = json.loads(body)
     if answer.get("errors"):
         raise RuntimeError(f"GraphQL error: {answer['errors'][0].get('message')}")
     return answer["data"]
@@ -223,6 +247,15 @@ def _car(item: dict[str, Any]) -> dict[str, Any]:
         "price": price.get("value"),
         "currency": price.get("currency"),
     }
+
+
+def is_results_page(text: str) -> bool:
+    """Whether the text is an API answer to a results query, even one with no cars."""
+    try:
+        products = json.loads(text).get("products")
+    except (ValueError, AttributeError):
+        return False
+    return isinstance(products, dict) and isinstance(products.get("items"), list)
 
 
 def parse_listing_cards(text: str, base_url: str) -> list[dict[str, Any]]:

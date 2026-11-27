@@ -72,7 +72,9 @@ def list_listings(
     try:
         html = _fetcher(adapter, fetch_html)(target)
         listings = adapter.parse_listing_cards(html, target)
-        if not listings:
+        # An adapter that can tell a results page with no cars from another page
+        # (e.g. an API answer) defines `is_results_page`: zero cars is then a result
+        if not listings and not getattr(adapter, "is_results_page", lambda _text: False)(html):
             raise ValueError("No listing cards found. This page is not a results page.")
         currency = getattr(adapter, "CARD_CURRENCY", None)
         return {

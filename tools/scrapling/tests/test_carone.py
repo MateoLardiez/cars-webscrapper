@@ -171,3 +171,60 @@ def test_service_uses_the_adapter_fetch(monkeypatch):
     assert listed["next_page_url"] == START + "&max_km=50000&page=2"
     details = get_listing_details([CAR_URL])
     assert details["results"][0]["listing"]["color"] == "Blanco"
+
+
+def test_search_with_no_cars_on_the_site_is_an_empty_result(monkeypatch):
+    monkeypatch.setattr(carone, "fetch", lambda url: fetch(url, post=FakeApi()))
+    listed = list_listings(START, {"brand": "Honda"})
+    assert listed == {
+        "supported": True,
+        "url_used": START + "&brand=Honda",
+        "listings": [],
+        "next_page_url": None,
+    }
+
+
+def test_only_a_products_answer_is_a_results_page():
+    assert carone.is_results_page(json.dumps(carone._NO_RESULTS))
+    assert not carone.is_results_page("<html></html>")
+    assert not carone.is_results_page(json.dumps({"catalogFilters": {}}))
+    assert not carone.is_results_page("[]")
+
+
+class FakeSend:
+    """Answers each POST with the next (status, body), or raises it."""
+
+    def __init__(self, *answers: Any):
+        self.answers = list(answers)
+        self.calls = 0
+
+    def __call__(self, payload: dict[str, Any]) -> tuple[int, bytes]:
+        self.calls += 1
+        answer = self.answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+
+OK = (200, json.dumps({"data": {"products": {}}}).encode())
+
+
+@pytest.mark.parametrize("first", [(503, b""), (429, b""), ConnectionError("reset")])
+def test_a_transient_api_failure_is_retried_once(first):
+    send = FakeSend(first, OK)
+    waits: list[float] = []
+    assert carone._post_graphql({}, send=send, sleep=waits.append) == {"products": {}}
+    assert send.calls == 2
+    assert waits == [carone.RETRY_DELAY_SECONDS]
+
+
+def test_a_second_api_failure_raises():
+    with pytest.raises(RuntimeError, match="HTTP 503"):
+        carone._post_graphql({}, send=FakeSend((503, b""), (503, b"")), sleep=lambda _s: None)
+
+
+def test_a_client_error_is_not_retried():
+    send = FakeSend((400, b""))
+    with pytest.raises(RuntimeError, match="HTTP 400"):
+        carone._post_graphql({}, send=send, sleep=lambda _s: None)
+    assert send.calls == 1
