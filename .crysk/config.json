@@ -1,0 +1,8 @@
+{
+  "max_changed_lines": 4000,
+  "post_min_severity": "suggestion",
+  "ci_review_policy": "risk_aware",
+  "ci_max_attempts": 3,
+  "ci_rereview_min_score": 4,
+  "max_verification_steps": 8
+}
